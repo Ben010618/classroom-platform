@@ -30,7 +30,8 @@ const fill = (sel, entries, value) => {
   }
 };
 $("mp-name").value = look.name || "";
-$("mp-room").value = store.get("world.room", "katuro");
+const savedRoom = store.get("world.room", "katuro");
+$("mp-room").value = /^bayanihan/.test(savedRoom) ? "katuro" : savedRoom;   // migrate the pre-rename default
 fill($("mp-outfit"), Object.entries(A.OUTFITS).map(([k, v]) => [k, v.label]), look.outfit);
 fill($("mp-hair"), Object.entries(A.HAIR_STYLES), look.hair);
 const swatches = (el, palette, key) => {
