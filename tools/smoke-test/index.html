@@ -1,0 +1,458 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Classroom Device Check</title>
+<style>
+  :root {
+    --bg: #f6f7f9; --card: #ffffff; --text: #16181d; --muted: #5d6470; --line: #e3e6eb;
+    --accent: #2457d6; --good: #13804a; --warn: #a86400; --bad: #c62a2a; --skip: #7a808a;
+    --good-bg: #e6f5ec; --warn-bg: #fff3df; --bad-bg: #fde8e8;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #111317; --card: #1a1d23; --text: #eceef2; --muted: #9aa1ad; --line: #2b2f37;
+      --accent: #6d95ff; --good: #4cc584; --warn: #f0a640; --bad: #ff6b6b; --skip: #8a909a;
+      --good-bg: #15301f; --warn-bg: #33270f; --bad-bg: #3a1717;
+    }
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--text);
+    font: 16px/1.45 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
+  main { max-width: 640px; margin: 0 auto; padding: 20px 16px 48px; }
+  header { display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; }
+  h1 { font-size: 1.35rem; margin: 0 0 4px; }
+  p.sub { margin: 0 0 16px; color: var(--muted); }
+  .lang { display: flex; border: 1px solid var(--line); border-radius: 8px; overflow: hidden; flex: none; }
+  .lang button { border: 0; background: var(--card); color: var(--muted); padding: 6px 10px; font: inherit; font-size: .85rem; cursor: pointer; }
+  .lang button[aria-pressed="true"] { background: var(--accent); color: #fff; }
+  .actions { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 16px; }
+  .btn { border: 0; border-radius: 10px; padding: 12px 18px; font: inherit; font-weight: 600; cursor: pointer; }
+  .btn.primary { background: var(--accent); color: #fff; }
+  .btn.secondary { background: var(--card); color: var(--text); border: 1px solid var(--line); }
+  .btn:disabled { opacity: .55; cursor: default; }
+  #summary { border-radius: 12px; padding: 14px 16px; margin-bottom: 16px; font-weight: 600; display: none; }
+  #summary.good { display: block; background: var(--good-bg); color: var(--good); }
+  #summary.warn { display: block; background: var(--warn-bg); color: var(--warn); }
+  #summary.bad  { display: block; background: var(--bad-bg);  color: var(--bad); }
+  ul.checks { list-style: none; margin: 0; padding: 0; background: var(--card); border: 1px solid var(--line); border-radius: 12px; }
+  ul.checks li { display: grid; grid-template-columns: 22px 1fr; gap: 10px; padding: 12px 14px; border-top: 1px solid var(--line); }
+  ul.checks li:first-child { border-top: 0; }
+  .dot { width: 14px; height: 14px; border-radius: 50%; margin-top: 4px; background: var(--line); }
+  .good .dot { background: var(--good); } .warn .dot { background: var(--warn); }
+  .bad .dot { background: var(--bad); } .skip .dot { background: var(--skip); }
+  .running .dot { background: var(--accent); animation: pulse 1s infinite; }
+  @keyframes pulse { 50% { opacity: .3; } }
+  .label { font-weight: 600; }
+  .detail { color: var(--muted); font-size: .9rem; word-break: break-word; }
+  canvas { width: 100%; height: 200px; display: block; border-radius: 12px; margin: 16px 0; background: #000; }
+  canvas[hidden] { display: none; }
+  footer { margin-top: 20px; color: var(--muted); font-size: .85rem; }
+</style>
+</head>
+<body>
+<main>
+  <header>
+    <div>
+      <h1 data-i18n="title"></h1>
+      <p class="sub" data-i18n="subtitle"></p>
+    </div>
+    <div class="lang" role="group" aria-label="Language">
+      <button type="button" data-lang="en">EN</button>
+      <button type="button" data-lang="fil">FIL</button>
+    </div>
+  </header>
+
+  <div class="actions">
+    <button class="btn primary" id="start" type="button" data-i18n="start"></button>
+    <button class="btn secondary" id="copy" type="button" data-i18n="copy" disabled></button>
+  </div>
+
+  <div id="summary" role="status" aria-live="polite"></div>
+  <canvas id="bench" hidden></canvas>
+  <ul class="checks" id="checks"></ul>
+
+  <footer data-i18n="privacy"></footer>
+</main>
+
+<script src="config.js"></script>
+<script>
+(() => {
+  "use strict";
+  const CFG = window.SMOKE_CONFIG;
+
+  // ---------- i18n ----------
+  const STR = {
+    en: {
+      title: "Classroom Device Check",
+      subtitle: "Find out if this device is ready for the 3D Virtual Classroom. Takes about 20 seconds.",
+      start: "Start check", running: "Checking…", again: "Check again",
+      copy: "Copy results", copied: "Copied!",
+      privacy: "This page collects no personal information. Results stay on this device unless you copy them.",
+      device: "Device", webgl: "3D graphics (WebGL2)", mic: "Microphone", network: "Connection type",
+      direct: "Direct voice connection (UDP)", turnUdp: "Voice relay (TURN UDP 3478)",
+      turnTls: "Voice relay on port 443 (TURN TLS)", rtt: "Server response time (RTT)",
+      fps: "3D speed (FPS benchmark)",
+      sumGood: "Ready! This device can run the 3D classroom.",
+      sumWarn: "Usable, with warnings. Check the amber items.",
+      sumBad: "Problem found. Copy the results and send them to your ICT coordinator.",
+      notConfigured: "Not configured yet", waiting: "Waiting…",
+      micDenied: "Microphone permission was denied", micNone: "No microphone found",
+      micOk: "Allowed — peak level", noWebgl: "WebGL2 not available — the 3D classroom will not run",
+      unknown: "unknown", noDirect: "Blocked — will need the relay",
+      relayOk: "Works", relayFail: "Failed — voice may not work on this network",
+      lite: "Use Lite mode", avg: "avg", low: "1% low", saveData: "Data Saver is ON",
+    },
+    fil: {
+      title: "Pagsusuri ng Device",
+      subtitle: "Alamin kung handa ang device na ito para sa 3D Virtual Classroom. Mga 20 segundo lang ito.",
+      start: "Simulan ang pagsusuri", running: "Sinusuri…", again: "Ulitin ang pagsusuri",
+      copy: "Kopyahin ang resulta", copied: "Nakopya na!",
+      privacy: "Walang personal na impormasyong kinokolekta ang pahinang ito. Nasa device mo lang ang resulta hangga't hindi mo ito kinokopya.",
+      device: "Device", webgl: "3D graphics (WebGL2)", mic: "Mikropono", network: "Uri ng koneksyon",
+      direct: "Direktang koneksyon ng boses (UDP)", turnUdp: "Relay ng boses (TURN UDP 3478)",
+      turnTls: "Relay ng boses sa port 443 (TURN TLS)", rtt: "Bilis ng sagot ng server (RTT)",
+      fps: "Bilis ng 3D (FPS benchmark)",
+      sumGood: "Handa na! Kaya ng device na ito ang 3D classroom.",
+      sumWarn: "Puwede, pero may babala. Tingnan ang mga dilaw na bahagi.",
+      sumBad: "May problema. Kopyahin ang resulta at ipadala sa inyong ICT coordinator.",
+      notConfigured: "Hindi pa naka-configure", waiting: "Naghihintay…",
+      micDenied: "Hindi pinayagan ang mikropono", micNone: "Walang nakitang mikropono",
+      micOk: "Pinayagan — pinakamalakas na tunog", noWebgl: "Walang WebGL2 — hindi gagana ang 3D classroom",
+      unknown: "hindi alam", noDirect: "Naka-block — kailangan ang relay",
+      relayOk: "Gumagana", relayFail: "Hindi gumana — baka hindi marinig ang boses sa network na ito",
+      lite: "Gamitin ang Lite mode", avg: "karaniwan", low: "pinakamabagal na 1%", saveData: "Naka-ON ang Data Saver",
+    },
+  };
+  let lang = /^(fil|tl)\b/i.test(navigator.language || "") ? "fil" : "en";
+  try { lang = localStorage.getItem("smoke-lang") || lang; } catch (_) {}
+  const t = (k) => (STR[lang] && STR[lang][k]) || STR.en[k] || k;
+
+  // ---------- check rows ----------
+  const ORDER = ["device", "webgl", "network", "mic", "direct", "turnUdp", "turnTls", "rtt", "fps"];
+  const state = {}; // id -> {status, detail(fn|string)}
+  const list = document.getElementById("checks");
+  ORDER.forEach((id) => {
+    const li = document.createElement("li");
+    li.id = "row-" + id;
+    li.innerHTML = '<span class="dot" aria-hidden="true"></span><div><div class="label"></div><div class="detail"></div></div>';
+    list.appendChild(li);
+    state[id] = { status: "", detail: () => t("waiting") };
+  });
+  function set(id, status, detail) {
+    state[id] = { status, detail: typeof detail === "function" ? detail : () => detail };
+    renderRow(id);
+  }
+  function renderRow(id) {
+    const li = document.getElementById("row-" + id);
+    li.className = state[id].status;
+    li.querySelector(".label").textContent = t(id);
+    li.querySelector(".detail").textContent = state[id].detail();
+  }
+  function renderAll() {
+    document.documentElement.lang = lang === "fil" ? "fil" : "en";
+    document.querySelectorAll("[data-i18n]").forEach((el) => { el.textContent = t(el.dataset.i18n); });
+    document.querySelectorAll(".lang button").forEach((b) => b.setAttribute("aria-pressed", String(b.dataset.lang === lang)));
+    if (ran) startBtn.textContent = t(running ? "running" : "again");
+    ORDER.forEach(renderRow);
+    renderSummary();
+  }
+  document.querySelectorAll(".lang button").forEach((b) => b.addEventListener("click", () => {
+    lang = b.dataset.lang;
+    try { localStorage.setItem("smoke-lang", lang); } catch (_) {}
+    renderAll();
+  }));
+
+  // ---------- individual checks ----------
+  function checkDevice() {
+    const ua = navigator.userAgentData;
+    const platform = (ua && ua.platform) || navigator.platform || t("unknown");
+    const mem = navigator.deviceMemory ? navigator.deviceMemory + " GB RAM" : "RAM " + t("unknown");
+    const cpu = (navigator.hardwareConcurrency || "?") + " cores";
+    const scr = screen.width + "×" + screen.height + " @" + (window.devicePixelRatio || 1) + "x";
+    const lowMem = navigator.deviceMemory && navigator.deviceMemory < 3;
+    set("device", lowMem ? "warn" : "good", [platform, mem, cpu, scr].join(" · "));
+  }
+
+  let gpuName = "";
+  function checkWebGL() {
+    const c = document.createElement("canvas");
+    const gl = c.getContext("webgl2");
+    if (!gl) { set("webgl", "bad", () => t("noWebgl")); return false; }
+    const ext = gl.getExtension("WEBGL_debug_renderer_info");
+    gpuName = ext ? gl.getParameter(ext.UNMASKED_RENDERER_WEBGL) : gl.getParameter(gl.RENDERER);
+    const soft = /swiftshader|llvmpipe|software/i.test(gpuName);
+    set("webgl", soft ? "warn" : "good", gpuName + (soft ? " (software rendering)" : ""));
+    return true;
+  }
+
+  function checkNetwork() {
+    const c = navigator.connection;
+    if (!c) { set("network", "skip", () => t("unknown")); return; }
+    const parts = [];
+    if (c.type) parts.push(c.type);
+    if (c.effectiveType) parts.push(c.effectiveType);
+    if (c.downlink) parts.push("~" + c.downlink + " Mbps");
+    if (c.rtt) parts.push("~" + c.rtt + " ms");
+    const slow = c.effectiveType && /(^|-)2g|slow/.test(c.effectiveType);
+    set("network", slow || c.saveData ? "warn" : "good",
+      () => parts.join(" · ") + (c.saveData ? " · " + t("saveData") : ""));
+  }
+
+  async function checkMic() {
+    if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) { set("mic", "bad", () => t("micNone")); return; }
+    let stream;
+    try {
+      stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+    } catch (e) {
+      const none = e && (e.name === "NotFoundError" || e.name === "OverconstrainedError");
+      set("mic", none ? "warn" : "bad", () => t(none ? "micNone" : "micDenied"));
+      return;
+    }
+    let peak = 0;
+    try {
+      const ctx = new (window.AudioContext || window.webkitAudioContext)();
+      const src = ctx.createMediaStreamSource(stream);
+      const an = ctx.createAnalyser(); an.fftSize = 512; src.connect(an);
+      const buf = new Uint8Array(an.fftSize);
+      const end = performance.now() + 2000;
+      while (performance.now() < end) {
+        an.getByteTimeDomainData(buf);
+        for (const v of buf) peak = Math.max(peak, Math.abs(v - 128) / 128);
+        await new Promise((r) => setTimeout(r, 50));
+      }
+      ctx.close();
+    } catch (_) {}
+    stream.getTracks().forEach((tr) => tr.stop());
+    const pct = Math.round(peak * 100);
+    set("mic", "good", () => t("micOk") + " " + pct + "%");
+  }
+
+  async function checkWebRTC() {
+    const servers = CFG.iceServers || [];
+    const urls = servers.flatMap((s) => [].concat(s.urls));
+    const hasTurnUdp = urls.some((u) => /^turn:/.test(u));
+    const hasTurnTls = urls.some((u) => /^turns:/.test(u));
+    if (!window.RTCPeerConnection) {
+      ["direct", "turnUdp", "turnTls"].forEach((id) => set(id, "bad", "WebRTC not supported"));
+      return;
+    }
+    const found = { srflx: false, relayUdp: false, relayTls: false };
+    const pc = new RTCPeerConnection({ iceServers: servers });
+    pc.createDataChannel("probe");
+    pc.onicecandidate = (e) => {
+      const c = e.candidate;
+      if (!c || !c.candidate) return;
+      const type = c.type || (c.candidate.match(/ typ (\w+)/) || [])[1];
+      if (type === "srflx") found.srflx = true;
+      if (type === "relay") {
+        const rp = c.relayProtocol || "";
+        const viaTls = rp === "tls" || rp === "tcp" || /^turns:/.test(c.url || "");
+        if (viaTls) found.relayTls = true; else found.relayUdp = true;
+      }
+    };
+    await pc.setLocalDescription(await pc.createOffer());
+    await new Promise((resolve) => {
+      const timer = setTimeout(resolve, 8000);
+      pc.onicegatheringstatechange = () => {
+        if (pc.iceGatheringState === "complete") { clearTimeout(timer); resolve(); }
+      };
+    });
+    pc.close();
+    set("direct", found.srflx ? "good" : "warn", () => found.srflx ? t("relayOk") : t("noDirect"));
+    if (hasTurnUdp) set("turnUdp", found.relayUdp ? "good" : "warn", () => t(found.relayUdp ? "relayOk" : "relayFail"));
+    else set("turnUdp", "skip", () => t("notConfigured"));
+    if (hasTurnTls) set("turnTls", found.relayTls ? "good" : "bad", () => t(found.relayTls ? "relayOk" : "relayFail"));
+    else set("turnTls", "skip", () => t("notConfigured"));
+  }
+
+  async function checkRTT() {
+    if (!CFG.pingUrl) { set("rtt", "skip", () => t("notConfigured")); return; }
+    const times = [];
+    for (let i = 0; i < 6; i++) {
+      const t0 = performance.now();
+      try {
+        await fetch(CFG.pingUrl + (CFG.pingUrl.includes("?") ? "&" : "?") + "_=" + Date.now() + i,
+          { mode: "no-cors", cache: "no-store" });
+        if (i > 0) times.push(performance.now() - t0); // first request warms up DNS/TLS
+      } catch (_) { /* counted as missing */ }
+    }
+    if (!times.length) { set("rtt", "bad", "Server unreachable"); return; }
+    times.sort((a, b) => a - b);
+    const med = Math.round(times[Math.floor(times.length / 2)]);
+    const status = med <= CFG.rttGood ? "good" : med <= CFG.rttMax ? "warn" : "bad";
+    set("rtt", status, med + " ms (median of " + times.length + ")");
+  }
+
+  // ---------- FPS benchmark: raw WebGL2, ~80k triangles in 80 draw calls ----------
+  function runBenchmark() {
+    return new Promise((resolve) => {
+      const canvas = document.getElementById("bench");
+      canvas.hidden = false;
+      const dpr = Math.min(window.devicePixelRatio || 1, 1.5);
+      canvas.width = Math.round(canvas.clientWidth * dpr);
+      canvas.height = Math.round(canvas.clientHeight * dpr);
+      const gl = canvas.getContext("webgl2", { antialias: false, powerPreference: "high-performance" });
+      if (!gl) { resolve(null); return; }
+
+      const vs = `#version 300 es
+        layout(location=0) in vec3 aPos; layout(location=1) in vec3 aNrm; layout(location=2) in vec4 aInst;
+        uniform mat4 uVP; uniform float uTime; out vec3 vN; out float vH;
+        void main(){
+          float a = uTime * 0.6 + aInst.w;
+          mat3 r = mat3(cos(a),0.,-sin(a), 0.,1.,0., sin(a),0.,cos(a));
+          vec3 p = r * (aPos * 0.35) + aInst.xyz;
+          vN = r * aNrm; vH = aInst.w;
+          gl_Position = uVP * vec4(p, 1.0);
+        }`;
+      const fs = `#version 300 es
+        precision mediump float; in vec3 vN; in float vH; out vec4 o;
+        void main(){
+          vec3 base = 0.55 + 0.45 * cos(6.2831 * (vH * 0.15 + vec3(0.0, 0.33, 0.67)));
+          float d = max(dot(normalize(vN), normalize(vec3(0.4, 0.8, 0.5))), 0.0);
+          o = vec4(base * (0.35 + 0.65 * d), 1.0);
+        }`;
+      const sh = (type, src) => { const s = gl.createShader(type); gl.shaderSource(s, src); gl.compileShader(s); return s; };
+      const prog = gl.createProgram();
+      gl.attachShader(prog, sh(gl.VERTEX_SHADER, vs)); gl.attachShader(prog, sh(gl.FRAGMENT_SHADER, fs));
+      gl.linkProgram(prog); gl.useProgram(prog);
+
+      // Unit cube: 36 vertices (12 triangles), position + normal.
+      const F = [[0,0,1],[0,0,-1],[0,1,0],[0,-1,0],[1,0,0],[-1,0,0]];
+      const cube = [];
+      for (const n of F) {
+        const [u, v] = n[0] ? [[0,1,0],[0,0,1]] : n[1] ? [[1,0,0],[0,0,1]] : [[1,0,0],[0,1,0]];
+        const c = (s, q) => n.map((k, i) => k + s * u[i] + q * v[i]);
+        for (const [s, q] of [[-1,-1],[1,-1],[1,1],[-1,-1],[1,1],[-1,1]]) cube.push(...c(s, q), ...n);
+      }
+      const vao = gl.createVertexArray(); gl.bindVertexArray(vao);
+      const vb = gl.createBuffer(); gl.bindBuffer(gl.ARRAY_BUFFER, vb);
+      gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(cube), gl.STATIC_DRAW);
+      gl.enableVertexAttribArray(0); gl.vertexAttribPointer(0, 3, gl.FLOAT, false, 24, 0);
+      gl.enableVertexAttribArray(1); gl.vertexAttribPointer(1, 3, gl.FLOAT, false, 24, 12);
+
+      const cubes = Math.ceil(CFG.benchmarkTriangles / 12);
+      const side = Math.ceil(Math.cbrt(cubes));
+      const inst = new Float32Array(cubes * 4);
+      for (let i = 0; i < cubes; i++) {
+        const x = i % side, y = Math.floor(i / side) % side, z = Math.floor(i / (side * side));
+        inst.set([(x - side / 2) * 1.1, (y - side / 2) * 1.1, (z - side / 2) * 1.1, (x + y + z) * 0.37], i * 4);
+      }
+      const ib = gl.createBuffer(); gl.bindBuffer(gl.ARRAY_BUFFER, ib);
+      gl.bufferData(gl.ARRAY_BUFFER, inst, gl.STATIC_DRAW);
+      gl.enableVertexAttribArray(2); gl.vertexAttribDivisor(2, 1);
+
+      const DRAW_CALLS = 80; // our per-room draw-call budget
+      const perCall = Math.ceil(cubes / DRAW_CALLS);
+      const uVP = gl.getUniformLocation(prog, "uVP"), uTime = gl.getUniformLocation(prog, "uTime");
+      gl.enable(gl.DEPTH_TEST); gl.viewport(0, 0, canvas.width, canvas.height);
+
+      const persp = (fov, asp, n, f) => { const k = 1 / Math.tan(fov / 2), r = 1 / (n - f);
+        return [k / asp,0,0,0, 0,k,0,0, 0,0,(n + f) * r,-1, 0,0,2 * n * f * r,0]; };
+      const mul = (a, b) => { const o = new Array(16).fill(0);
+        for (let c = 0; c < 4; c++) for (let r = 0; r < 4; r++) for (let k = 0; k < 4; k++) o[c * 4 + r] += a[k * 4 + r] * b[c * 4 + k];
+        return o; };
+      const look = (eye) => { // camera looking at origin, up = +Y
+        const f = eye.map((v) => -v), fl = Math.hypot(...f); f.forEach((_, i) => f[i] /= fl);
+        const s = [f[1] * 0 - f[2] * 1, f[2] * 0 - f[0] * 0, f[0] * 1 - f[1] * 0], sl = Math.hypot(...s); s.forEach((_, i) => s[i] /= sl);
+        const u = [s[1] * f[2] - s[2] * f[1], s[2] * f[0] - s[0] * f[2], s[0] * f[1] - s[1] * f[0]];
+        const d = (a) => -(a[0] * eye[0] + a[1] * eye[1] + a[2] * eye[2]);
+        return [s[0],u[0],-f[0],0, s[1],u[1],-f[1],0, s[2],u[2],-f[2],0, d(s),d(u),-d(f),1]; };
+      const P = persp(1.0, canvas.width / canvas.height, 0.1, 200);
+
+      const frameTimes = [];
+      const warmup = 1000, total = CFG.benchmarkSeconds * 1000;
+      let start = 0, last = 0;
+      function frame(now) {
+        if (!start) { start = now; last = now; }
+        const el = now - start;
+        if (el > warmup) frameTimes.push(now - last);
+        last = now;
+        const a = el / 4000, R = side * 1.4;
+        gl.clearColor(0.05, 0.06, 0.08, 1); gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
+        gl.uniformMatrix4fv(uVP, false, mul(P, look([Math.sin(a) * R, side * 0.5, Math.cos(a) * R])));
+        gl.uniform1f(uTime, el / 1000);
+        for (let c = 0; c < DRAW_CALLS; c++) {
+          const first = c * perCall, count = Math.min(perCall, cubes - first);
+          if (count <= 0) break;
+          gl.vertexAttribPointer(2, 4, gl.FLOAT, false, 16, first * 16);
+          gl.drawArraysInstanced(gl.TRIANGLES, 0, 36, count);
+        }
+        if (el < warmup + total) requestAnimationFrame(frame);
+        else {
+          canvas.hidden = true;
+          if (!frameTimes.length) { resolve(null); return; }
+          const avg = 1000 / (frameTimes.reduce((x, y) => x + y, 0) / frameTimes.length);
+          const sorted = frameTimes.slice().sort((x, y) => y - x);
+          const worst = sorted.slice(0, Math.max(1, Math.floor(sorted.length / 100)));
+          const low = 1000 / (worst.reduce((x, y) => x + y, 0) / worst.length);
+          resolve({ avg: Math.round(avg), low: Math.round(low), tris: cubes * 12, calls: DRAW_CALLS });
+        }
+      }
+      requestAnimationFrame(frame);
+    });
+  }
+
+  async function checkFPS() {
+    set("fps", "running", () => t("running"));
+    const r = await runBenchmark();
+    if (!r) { set("fps", "bad", () => t("noWebgl")); return; }
+    const status = r.avg >= CFG.fpsGood ? "good" : r.avg >= CFG.fpsMin ? "warn" : "bad";
+    set("fps", status, () => r.avg + " FPS " + t("avg") + " · " + r.low + " FPS " + t("low") +
+      " · " + r.tris.toLocaleString() + " tris / " + r.calls + " draws" + (status !== "good" ? " — " + t("lite") : ""));
+  }
+
+  // ---------- orchestration ----------
+  const startBtn = document.getElementById("start");
+  const copyBtn = document.getElementById("copy");
+  const summary = document.getElementById("summary");
+  let ran = false, running = false;
+
+  function renderSummary() {
+    if (!ran || running) { summary.className = ""; summary.textContent = ""; return; }
+    const statuses = ORDER.map((id) => state[id].status);
+    const overall = statuses.includes("bad") ? "bad" : statuses.includes("warn") ? "warn" : "good";
+    summary.className = overall;
+    summary.textContent = t({ good: "sumGood", warn: "sumWarn", bad: "sumBad" }[overall]);
+  }
+
+  startBtn.addEventListener("click", async () => {
+    if (running) return;
+    running = true; ran = true;
+    startBtn.disabled = true; copyBtn.disabled = true;
+    startBtn.textContent = t("running");
+    ORDER.forEach((id) => set(id, "running", () => t("running")));
+    renderSummary();
+
+    checkDevice();
+    const hasGL = checkWebGL();
+    checkNetwork();
+    await Promise.all([checkMic(), checkWebRTC(), checkRTT()]);
+    if (hasGL) await checkFPS(); else set("fps", "bad", () => t("noWebgl"));
+
+    running = false;
+    startBtn.disabled = false; copyBtn.disabled = false;
+    startBtn.textContent = t("again");
+    renderSummary();
+  });
+
+  copyBtn.addEventListener("click", async () => {
+    const lines = ["Classroom Device Check — " + new Date().toISOString(), navigator.userAgent, ""];
+    ORDER.forEach((id) => lines.push("[" + (state[id].status || "-").toUpperCase() + "] " + STR.en[id] + ": " +
+      (() => { const keep = lang; lang = "en"; const d = state[id].detail(); lang = keep; return d; })()));
+    const text = lines.join("\n");
+    try { await navigator.clipboard.writeText(text); }
+    catch (_) {
+      const ta = document.createElement("textarea"); ta.value = text; document.body.appendChild(ta);
+      ta.select(); try { document.execCommand("copy"); } catch (_) {} ta.remove();
+    }
+    copyBtn.textContent = t("copied");
+    setTimeout(() => { copyBtn.textContent = t("copy"); }, 1500);
+  });
+
+  renderAll();
+})();
+</script>
+</body>
+</html>

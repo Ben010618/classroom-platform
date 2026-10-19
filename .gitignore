@@ -1,0 +1,7 @@
+# Private — never publish
+docs/letters/
+
+# OS / editor
+Thumbs.db
+desktop.ini
+.DS_Store
