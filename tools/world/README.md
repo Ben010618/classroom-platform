@@ -18,12 +18,34 @@ One world definition ([`world.js`](world.js)) produces two things:
 | **Walkable preview** | [`index.html`](index.html): first-person walk in any browser (keyboard, mouse or touch), with "Go to" buttons and a toggle showing the Hubs markers | `npm run preview`, then open http://localhost:8766 |
 | **Hubs scene** | `assets/scenes/katuro-university.glb`: Draco-compressed, with `MOZ_hubs_components` | `npm ci && npm run export` |
 
+## RPG mode (Medium and High devices)
+
+| | |
+| :--- | :--- |
+| **Characters** | Quaternius **CC0** rigged mannequin with **14 animations**: idle, talk, walk, jog, sprint, jump (start, loop, land), sit (enter, idle, talk, exit), interact, dance. **Real hairstyles** and eyebrows from *Universal Base Characters* (CC0). Uniforms, skin tone and face are painted by a shader (`character.js`), so there are no extra textures. Built by `fetch-characters.mjs` (1.2 MB character, 2.3 MB with hair). |
+| **Physics** | **[Rapier](https://rapier.rs) 0.19.3** (Apache-2.0) kinematic character controller: gravity, jumping, sliding along walls, solid desks, trees and fences, and **climbing the stage stairs** (a hidden ramp collider). Falls back to simple collision if it can't load. |
+| **Camera** | Third-person orbit (drag to look) that pulls in and never crosses walls, windows or doors. **V** switches to first person. |
+| **Controls** | Computer: **WASD** move · **Shift/R** run · **Space** jump · **C** sit at the nearest chair or stand · **H** raise hand · **V** camera. Phone: thumbstick ring and round **Jump / Run / Hand / Sit / View** buttons. |
+| **Device detection** | Type, OS, GPU, memory and cores pick **Low / Medium / High**. Low keeps the light first-person mode. The badge bottom-right shows what was detected. |
+
+## Environment (`env.js`)
+
+- **Wind:** tree canopies and potted plants sway in gusts (GPU vertex animation), and the **Philippine flag waves** as cloth.
+- **Life:** a flock of birds circling with flapping wings (GPU-instanced, 3 draw calls), falling leaves near you, and butterflies in the vegetable garden.
+- **Soundscape, generated live with the Web Audio API (no audio files):**
+  - wind gusts, muffled indoors;
+  - leaf rustle near trees;
+  - **birdsong** (trills, two-note whistles, descending calls) from random directions, quieter inside;
+  - **footsteps** at walking or running cadence;
+  - ceiling-fan hum in Classroom 1.
+  - **Sound: on/off** button. Browsers start audio after the first tap or key press.
+
 ## Multiplayer demo (Join class)
 
 Press **Join class (multiplayer)**. Everyone who enters the **same class code** meets in the same school.
 
 - **Appearance editor:** skin tone (5), hairstyle (short, long, ponytail, bun, buzz cut), hair colour (5) and outfit (polo or blouse school uniform, PE shirt, casual, teacher), with a live 3D preview. It's remembered on the device.
-- **Avatars:** name tags, a raised arm when the hand is up, and sitting down when seated. The mouth moves while talking.
+- **Avatars:** HD characters (RPG mode) or light avatars (Low devices), with name tags, a raised arm when the hand is up, and walking, running, jumping and sitting in sync. The talking animation plays while someone speaks.
 - **Voice:** spatial, so people get louder as you walk closer. Pods are cut off from each other, and a teacher standing on the podium is heard everywhere.
 - **Teacher** (tick "I'm the teacher"): Mute everyone, Gather to seats (optionally locked), Call to the front, Unlock seats, and the raised-hands list.
 

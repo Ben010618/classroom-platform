@@ -81,7 +81,21 @@
     #mp-preview { height: 200px; order: -1; }
     #mp-teacher-panel { top: auto; bottom: 120px; width: 190px; }
   }
-  @media (max-width: 560px) { .help { display: none; } }
+  /* RPG action pad (touch) */
+  #rpg-actions { position: fixed; z-index: 6; right: max(14px, env(safe-area-inset-right, 0px)); bottom: calc(70px + env(safe-area-inset-bottom, 0px));
+    display: grid; grid-template-columns: repeat(2, 64px); gap: 10px; }
+  #rpg-actions button { width: 64px; height: 64px; border-radius: 50%; border: 2px solid rgba(255,255,255,0.5); background: rgba(20, 28, 24, 0.55);
+    color: #fff; font: 700 22px var(--ui); display: grid; place-items: center; line-height: 1; cursor: pointer; backdrop-filter: blur(4px); padding: 0; }
+  #rpg-actions button small { font-size: 10px; font-weight: 600; opacity: 0.85; }
+  #rpg-actions button[aria-pressed="true"] { background: rgba(124, 196, 160, 0.6); border-color: #fff; }
+  #rpg-actions button:active { transform: scale(0.94); }
+  #rpg-actions.compact { grid-template-columns: repeat(5, 46px); gap: 6px; bottom: calc(70px + env(safe-area-inset-bottom, 0px)); }
+  #rpg-actions.compact button { width: 46px; height: 46px; font-size: 16px; }
+  #rpg-ring { position: fixed; z-index: 3; left: max(30px, env(safe-area-inset-left, 0px)); bottom: calc(40px + env(safe-area-inset-bottom, 0px));
+    width: 150px; height: 150px; border-radius: 50%; border: 2px solid rgba(255,255,255,0.45); pointer-events: none;
+    box-shadow: inset 0 0 0 1px rgba(0,0,0,0.15); }
+  #loadhint { color: var(--muted); font-size: 12px; }
+  @media (max-width: 560px) { .help { display: none; } #rpg-actions { bottom: calc(24px + env(safe-area-inset-bottom, 0px)); } }
 </style>
 
 <div id="view"></div>
@@ -91,7 +105,7 @@
 <div class="hud">
   <div class="card title">
     <b>Katuro University</b>
-    <span>You are at: <span id="where">Main gate</span></span>
+    <span>You are at: <span id="where">Main gate</span></span> <span id="loadhint"></span>
     <div style="margin-top:6px"><button type="button" class="primary" id="mp-open">Join class (multiplayer)</button>
       <div id="mp-bar" hidden><span id="mp-status">Connecting…</span>
         <button type="button" class="toggle" id="mp-mic" aria-pressed="false">Mute</button>
@@ -163,6 +177,8 @@
 <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/RGBELoader.js"></script>
 <script src="world.js?v=BUILD_ID"></script>
 <script src="avatar.js?v=BUILD_ID"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/utils/SkeletonUtils.js"></script>
+<script src="character.js?v=BUILD_ID"></script>
 
 <script>
 "use strict";
@@ -270,7 +286,7 @@
   });
   view.appendChild(renderer.domElement);
 
-  const { scene, colliders, places, markers, materials: M, props, signs, trees } = buildWorld(THREE, { realFurniture: !simple });
+  const { scene, colliders, places, markers, materials: M, props, signs, trees, ramps } = buildWorld(THREE, { realFurniture: !simple });
   scene.background = new THREE.Color(0xa9d3ef);
   scene.fog = new THREE.Fog(0xa9d3ef, 60, 150);
 
@@ -413,6 +429,7 @@
 
   for (const sg of allSigns) {
     const mesh = sg.flag ? flagPlane(sg.w, sg.h) : textPlane(sg.lines, sg.w, sg.h, sg.bg, sg.fg);
+    if (sg.flag) { mesh.userData.flag = true; mesh.position.x += 0; }
     mesh.position.set(sg.x, sg.y, sg.z);
     mesh.rotation.y = sg.ry || 0;
     scene.add(mesh);
@@ -551,18 +568,19 @@
   function frame(now) {
     const dt = Math.min(0.05, (now - last) / 1000);
     last = now;
+    const rpg = window.__world && window.__world.player && window.__world.player.active;
     let f = 0, s = 0;
     if (keys.has("KeyW") || keys.has("ArrowUp")) f += 1;
     if (keys.has("KeyS") || keys.has("ArrowDown")) f -= 1;
     if (keys.has("KeyA")) s -= 1;
     if (keys.has("KeyD")) s += 1;
-    if (keys.has("ArrowLeft")) me.yaw += 1.8 * dt;
-    if (keys.has("ArrowRight")) me.yaw -= 1.8 * dt;
+    if (keys.has("ArrowLeft") && !rpg) me.yaw += 1.8 * dt;
+    if (keys.has("ArrowRight") && !rpg) me.yaw -= 1.8 * dt;
     if (keys.has("KeyQ")) me.yaw += 1.8 * dt;
     if (keys.has("KeyE")) me.yaw -= 1.8 * dt;
     f -= moveVec.y; s += moveVec.x;
     const speed = (keys.has("ShiftLeft") || keys.has("ShiftRight") ? 6 : 3) * dt;
-    const len = me.locked ? 0 : Math.hypot(f, s);
+    const len = me.locked || rpg ? 0 : Math.hypot(f, s);
     if (len > 0.01) {
       const k = Math.min(1, len) / len;
       const fx = -Math.sin(me.yaw), fz = -Math.cos(me.yaw);
@@ -572,8 +590,9 @@
     }
     if (window.__spinFans) window.__spinFans(dt);
     if (window.__world && window.__world.onTick) window.__world.onTick(dt);
-    camera.position.set(me.x, EYE, me.z);
-    camera.rotation.set(me.pitch, me.yaw, 0, "YXZ");
+    if (rpg) window.__world.player.update(dt);
+    else { camera.position.set(me.x, EYE, me.z); camera.rotation.set(me.pitch, me.yaw, 0, "YXZ"); }
+    if (window.__world && window.__world.onEnv) window.__world.onEnv(dt, now / 1000);
     renderer.render(scene, camera);
 
     frames++;
@@ -605,7 +624,9 @@
     .map(m => ({ x: m.position.x, z: m.position.z, yaw: m.rotation.y }));
   const pods = markers.children.filter(m => /^pod-[a-d]$/.test(m.name)).map(m => ({ x: m.position.x, z: m.position.z, w: m.scale.x, d: m.scale.z }));
   places.podiumFront = { x: places.podium.x, z: -21.9, yaw: 0 };
-  window.__world = { THREE, scene, camera, renderer, me, places, go, seats, pods, byName, device, onTick: null };
+  const indoorAreas = [[-30, -26, 26, -6], [-56, -4, -42, 5], [-56, -24, -42, -14]];   // school building, canteen, library
+  window.__world = { THREE, scene, camera, renderer, me, places, go, seats, pods, byName, device, onTick: null,
+    keys, moveVec, colliders, collide, indoorAreas, build: BUILD, simple, materials: M, trees, signs, ramps };
   window.dispatchEvent(new Event("world-ready"));
 
   go("gate");
@@ -613,3 +634,5 @@
 })();
 </script>
 <script type="module" src="multiplayer.js?v=BUILD_ID"></script>
+<script type="module" src="player.js?v=BUILD_ID"></script>
+<script type="module" src="env.js?v=BUILD_ID"></script>
