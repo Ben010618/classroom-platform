@@ -1,8 +1,8 @@
 {
-  "name": "school-world",
+  "name": "katuro-university-world",
   "private": true,
   "type": "module",
-  "description": "Bayanihan Demo School: walkable preview (index.html) and Hubs scene export (export.mjs) from one world definition (world.js).",
+  "description": "Katuro University: walkable preview (index.html) and Hubs scene export (export.mjs) from one world definition (world.js).",
   "scripts": {
     "export": "node export.mjs",
     "preview": "python -m http.server 8766",

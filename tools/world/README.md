@@ -1,4 +1,4 @@
-# Bayanihan Demo School — world generator
+# Katuro University — world generator
 
 **Walk it now:** https://ben010618.github.io/classroom-platform/world/ (GitHub Pages, works on any phone or laptop browser, no install)
 
@@ -16,7 +16,7 @@ One world definition ([`world.js`](world.js)) produces two things:
 | Output | What | How |
 | :--- | :--- | :--- |
 | **Walkable preview** | [`index.html`](index.html): first-person walk in any browser (keyboard, mouse or touch), with "Go to" buttons and a toggle showing the Hubs markers | `npm run preview`, then open http://localhost:8766 |
-| **Hubs scene** | `assets/scenes/bayanihan-school.glb`: Draco-compressed, with `MOZ_hubs_components` | `npm ci && npm run export` |
+| **Hubs scene** | `assets/scenes/katuro-university.glb`: Draco-compressed, with `MOZ_hubs_components` | `npm ci && npm run export` |
 
 ## Multiplayer demo (Join class)
 

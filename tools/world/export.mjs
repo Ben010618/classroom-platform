@@ -1,5 +1,5 @@
-// Exports the Bayanihan Demo School world as a Hubs scene (.glb).
-//   node export.mjs [out.glb]        (default: ../../assets/scenes/bayanihan-school.glb)
+// Exports the Katuro University world as a Hubs scene (.glb).
+//   node export.mjs [out.glb]        (default: ../../assets/scenes/katuro-university.glb)
 // Steps: build the world with three.js (same world.js as the preview) → GLTFExporter (binary)
 //        → gltf-transform (dedup, weld, Draco) → move each node's extras.MOZ_hubs_components into
 //        the MOZ_hubs_components glTF extension that Hubs reads.
@@ -15,7 +15,7 @@ import draco3d from "draco3dgltf";
 
 const here = dirname(fileURLToPath(import.meta.url));
 const require = createRequire(import.meta.url);
-const out = resolve(process.argv[2] || join(here, "../../assets/scenes/bayanihan-school.glb"));
+const out = resolve(process.argv[2] || join(here, "../../assets/scenes/katuro-university.glb"));
 
 // ---------- 1. three.js in Node, plus the two non-module example scripts and our world
 globalThis.window = globalThis;
