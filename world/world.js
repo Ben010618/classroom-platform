@@ -4,7 +4,11 @@
 // Units: metres. +Y up. The classroom board is on the north wall (−Z); learners face −Z.
 // buildWorld() returns { scene, colliders, places } and never touches the DOM, so it also runs in Node (export.mjs).
 // ============================================================================================
-(typeof window !== "undefined" ? window : globalThis).buildWorld = function buildWorld(THREE) {
+// opts.realFurniture: skip the box desks/chairs/teacher table and return `props` placements instead,
+// so the caller can drop in real models (the preview does; the Hubs export keeps the box versions for now).
+(typeof window !== "undefined" ? window : globalThis).buildWorld = function buildWorld(THREE, opts = {}) {
+  const realFurniture = !!opts.realFurniture;
+  const props = []; // { kind, x, y, z, ry }
   const scene = new THREE.Scene();
   scene.name = "BayanihanDemoSchool";
   const colliders = []; // axis-aligned XZ rectangles the walker can't enter: [x0, z0, x1, z1]
@@ -29,17 +33,34 @@
   mat("board", 0x1f3d2c);         // chalkboard
   mat("glass", 0x6f8fa3, { roughness: 0.25 });
   mat("trunk", 0x6b4a2f);
-  mat("leaf", 0x3f7d3a, { flatShading: true });
-  mat("leaf2", 0x55913f, { flatShading: true });
+  mat("leaf", 0x3a7234);
+  mat("leaf2", 0x4f8a3c);
   mat("court", 0x2f6f8f);         // court floor
   mat("courtLine", 0xf3efe6);
   mat("flag", 0xf3efe6);
   mat("podium", 0x8a5a33);
   mat("pod", 0xd9a35a);           // breakout pod tables
   mat("marker", 0xffffff, { roughness: 1 });
+  mat("lamp", 0xffffff, { emissive: 0xffffff, emissiveIntensity: 1.4, roughness: 0.5 });   // fluorescent tubes
+
+  // Texture tiling (metres per texture repeat) for surfaces that get real textures in the preview.
+  const TILE = { leaf: 2, leaf2: 2, floor: 1.2, wall: 2.4, ceiling: 2.4, roof: 2.5, concrete: 3, path: 3, grass: 5, grassDark: 5, court: 4, wood: 1.2, podium: 1.2, pod: 1.2 };
 
   // ---------- geometry buckets, merged per material at the end
   const buckets = {};
+  // Box-project UVs from world position, so textures keep real-world scale on every face.
+  function worldUV(g, tile) {
+    const p = g.attributes.position, n = g.attributes.normal, uv = g.attributes.uv;
+    if (!uv) return;
+    for (let i = 0; i < p.count; i++) {
+      const ax = Math.abs(n.getX(i)), ay = Math.abs(n.getY(i)), az = Math.abs(n.getZ(i));
+      const x = p.getX(i) / tile, y = p.getY(i) / tile, z = p.getZ(i) / tile;
+      if (ay >= ax && ay >= az) uv.setXY(i, x, z);
+      else if (ax >= az) uv.setXY(i, z, y);
+      else uv.setXY(i, x, y);
+    }
+    uv.needsUpdate = true;
+  }
   const tmp = new THREE.Object3D();
   function put(matName, geo, x, y, z, ry = 0, rx = 0, rz = 0) {
     let g = geo.index ? geo.toNonIndexed() : geo;
@@ -48,6 +69,7 @@
     tmp.scale.set(1, 1, 1);
     tmp.updateMatrix();
     g.applyMatrix4(tmp.matrix);
+    if (TILE[matName]) worldUV(g, TILE[matName]);
     (buckets[matName] = buckets[matName] || []).push(g);
   }
   // box with its BOTTOM at y
@@ -108,7 +130,6 @@
   box("concrete", -2, 0, 4, 66, 0.04, 14);                 // front plaza
   box("path", 0, 0, 40, 5, 0.03, 58);                      // gate → plaza walkway
   box("path", 36, 0, 4, 12, 0.03, 4);                      // plaza → court
-  for (let i = 0; i < 18; i++) box("grassDark", -60 + i * 7, 0, 30 + ((i * 37) % 17), 3, 0.02, 2);  // grass patches
 
   // perimeter fence with a gate gap at x = −5..5 on the south side (z = 70)
   const fenceH = 1.8;
@@ -189,7 +210,16 @@
   box("trim", cx, 0.86, B.z0 + 0.2, 6.2, 0.06, 0.14);                  // chalk ledge
   box("podium", cx, 0, -23.6, 1.2, 1.05, 0.6, 0, true);                // lectern
   box("trim", cx, 1.05, -23.6, 1.3, 0.05, 0.7);
-  box("wood", cx + 3.6, 0, -23.8, 1.6, 0.76, 0.8, 0, true);            // teacher's table
+  if (realFurniture) {
+    props.push({ kind: "teacher-desk", x: cx + 3.8, y: 0, z: -23.9, ry: Math.PI });
+    colliders.push([cx + 2.8, -24.4, cx + 4.8, -23.4]);
+    props.push({ kind: "shelf", x: -29.85, y: 0, z: -19.5, ry: Math.PI / 2 });   // book shelves on the west wall
+    props.push({ kind: "shelf", x: -29.85, y: 0, z: -18.4, ry: Math.PI / 2 });
+    colliders.push([-30, -20.1, -29.55, -17.8]);
+    for (const [fx, fz] of [[-26.5, -19.5], [-19.5, -19.5], [-26.5, -13], [-19.5, -13]]) props.push({ kind: "ceiling-fan", x: fx, y: 3.54, z: fz, ry: 0 });
+  } else {
+    box("wood", cx + 3.6, 0, -23.8, 1.6, 0.76, 0.8, 0, true);          // teacher's table
+  }
   // 35 learner desks: 5 rows × 7, each a desk + chair, facing the board
   let seatNo = 0;
   const seatXs = [-26.9, -25.6, -24.3, -23.0, -21.7, -20.4, -19.1];
@@ -197,11 +227,16 @@
   for (const z of rowZs) {
     for (const x of seatXs) {
       seatNo += 1;
-      box("wood", x, 0.72, z - 0.35, 0.95, 0.04, 0.5);                 // desk top
-      for (const [dx, dz] of [[-0.42, -0.57], [0.42, -0.57], [-0.42, -0.13], [0.42, -0.13]]) box("metal", x + dx, 0, z + dz, 0.04, 0.72, 0.04);
-      box("wood", x, 0.44, z + 0.15, 0.42, 0.04, 0.4);                 // chair seat
-      box("wood", x, 0.48, z + 0.36, 0.42, 0.42, 0.04);                // chair back
-      for (const [dx, dz] of [[-0.18, -0.03], [0.18, -0.03], [-0.18, 0.33], [0.18, 0.33]]) box("metal", x + dx, 0, z + dz, 0.035, 0.44, 0.035);
+      if (realFurniture) {
+        props.push({ kind: "desk", x, y: 0, z: z - 0.35, ry: 0 });
+        props.push({ kind: "chair", x, y: 0, z: z + 0.2, ry: 0 });
+      } else {
+        box("wood", x, 0.72, z - 0.35, 0.95, 0.04, 0.5);               // desk top
+        for (const [dx, dz] of [[-0.42, -0.57], [0.42, -0.57], [-0.42, -0.13], [0.42, -0.13]]) box("metal", x + dx, 0, z + dz, 0.04, 0.72, 0.04);
+        box("wood", x, 0.44, z + 0.15, 0.42, 0.04, 0.4);               // chair seat
+        box("wood", x, 0.48, z + 0.36, 0.42, 0.42, 0.04);              // chair back
+        for (const [dx, dz] of [[-0.18, -0.03], [0.18, -0.03], [-0.18, 0.33], [0.18, 0.33]]) box("metal", x + dx, 0, z + dz, 0.035, 0.44, 0.035);
+      }
       marker("seat-" + String(seatNo).padStart(2, "0"), x, 0, z + 0.15, 0, seatWaypoint);
     }
   }
@@ -220,6 +255,13 @@
     });
     zone.scale.set(3.4, 3, 2.6);   // the zone is a unit box scaled to the pod area
     marker(name + "-spot", x, 0, z + 1.4, 0, gotoWaypoint);
+  }
+  // Fluorescent tube lights: 3 rows × 4, the long fixtures every public-school classroom has
+  for (const lx of [-27, -23, -19]) {
+    for (const lz of [-22, -17.5, -13, -8.5]) {
+      box("metal", lx, B.h - 0.12, lz, 0.22, 0.05, 1.3);
+      box("lamp", lx, B.h - 0.16, lz, 0.08, 0.04, 1.2);
+    }
   }
   // Hubs markers for teaching
   marker("podium", cx, 0, -22.9, Math.PI, gotoWaypoint);                       // teacher faces the class
@@ -263,9 +305,17 @@
     if (Math.abs(x) < 6 && z > 18) return;                   // keep the walkway clear
     if (x > 34 && x < 70 && z > -20 && z < 8) return;        // keep the court clear
     const h = 2.4 + (i % 3) * 0.5;
-    cyl("trunk", x, 0, z, 0.22, h, 6, 0.16);
-    const crown = new THREE.IcosahedronGeometry(1.6 + (i % 4) * 0.35, 0);
-    put(i % 2 ? "leaf" : "leaf2", crown, x, h + 1.0, z, i);
+    const r = 1.5 + (i % 4) * 0.3;
+    cyl("trunk", x, 0, z, 0.24, h + 0.6, 7, 0.14);
+    // Crown: a cluster of 4 smooth blobs (reads as a mango/acacia canopy, still ~320 triangles)
+    const blobs = [[0, 0.9, 0, 1], [0.75, 0.55, 0.3, 0.72], [-0.65, 0.6, -0.35, 0.75], [0.1, 1.45, -0.5, 0.65]];
+    blobs.forEach(([bx, by, bz, br], k) => {
+      const g = new THREE.IcosahedronGeometry(r * br, 1);
+      g.scale(1, 0.78, 1);
+      const a = i * 1.7;
+      const rx = (bx * Math.cos(a) - bz * Math.sin(a)) * r, rz = (bx * Math.sin(a) + bz * Math.cos(a)) * r;
+      put((i + k) % 3 === 0 ? "leaf2" : "leaf", g, x + rx, h + by * r * 0.8, z + rz, i + k);
+    });
     colliders.push([x - 0.35, z - 0.35, x + 0.35, z + 0.35]);
   });
 
@@ -294,9 +344,9 @@
   }
   scene.add(world);
 
-  const hemi = new THREE.HemisphereLight(0xe8f1ff, 0x6f7a5a, 0.85);
+  const hemi = new THREE.HemisphereLight(0xe8f1ff, 0xbfb39a, 0.85);
   hemi.name = "sky-light";
-  hemi.userData = { MOZ_hubs_components: { "hemisphere-light": { skyColor: "#e8f1ff", groundColor: "#6f7a5a", intensity: 0.85 } } };
+  hemi.userData = { MOZ_hubs_components: { "hemisphere-light": { skyColor: "#e8f1ff", groundColor: "#bfb39a", intensity: 0.85 } } };
   scene.add(hemi);
   const sun = new THREE.DirectionalLight(0xfff2dc, 0.9);
   sun.name = "sun";
@@ -311,5 +361,5 @@
     podium: { x: cx, z: -22.8, yaw: Math.PI, label: "Podium" },
     court: { x: C.x - 17.5, z: C.z + 3, yaw: -Math.PI / 2 + 0.12, label: "Covered court" }
   };
-  return { scene, colliders, places, markers, materials: M };
+  return { scene, colliders, places, markers, materials: M, props };
 };

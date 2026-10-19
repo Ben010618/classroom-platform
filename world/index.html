@@ -13,6 +13,7 @@
     color-scheme: dark;
   }
   html, body { height: 100%; }
+  [hidden] { display: none !important; }
   body { margin: 0; background: var(--bg); color: var(--ink); font: 14px/1.4 var(--ui); overflow: hidden; touch-action: none; }
   #view { position: fixed; inset: 0; }
   canvas { display: block; width: 100%; height: 100%; }
@@ -47,12 +48,16 @@
   #where { color: var(--accent); font-weight: 600; }
   .stick { position: fixed; z-index: 4; width: 110px; height: 110px; border-radius: 50%; border: 2px solid var(--line); background: rgba(255,255,255,0.05); pointer-events: none; transform: translate(-50%, -50%); }
   .stick i { position: absolute; left: 50%; top: 50%; width: 44px; height: 44px; margin: -22px 0 0 -22px; border-radius: 50%; background: rgba(124,196,160,0.55); }
+  #loading { position: fixed; inset: 0; z-index: 8; display: grid; place-items: center; background: var(--bg); color: var(--ink); text-align: center; padding: 24px; }
+  #loading b { display: block; font-size: 18px; margin-bottom: 6px; }
+  #loading span { color: var(--muted); }
   #err { position: fixed; inset: 0; display: grid; place-items: center; text-align: center; padding: 24px; }
   @media (max-width: 560px) { .help { display: none; } }
 </style>
 
 <div id="view"></div>
 <div id="err" hidden></div>
+<div id="loading"><div><b>Bayanihan Demo School</b><span id="loadmsg">Loading the school…</span></div></div>
 
 <div class="hud">
   <div class="card title">
@@ -66,6 +71,7 @@
     <button type="button" data-go="podium">Podium</button>
     <button type="button" data-go="court">Covered court</button>
     <button type="button" class="toggle" id="markers" aria-pressed="false">Hubs markers</button>
+    <button type="button" class="toggle" id="quality" aria-pressed="false">Simple graphics</button>
   </div>
 </div>
 
@@ -78,6 +84,8 @@
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/utils/BufferGeometryUtils.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/GLTFLoader.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/RGBELoader.js"></script>
 <script src="world.js"></script>
 
 <script>
@@ -85,7 +93,7 @@
 // ============================================================================================
 // WALKABLE PREVIEW (browser only)
 // ============================================================================================
-(function preview() {
+(async function preview() {
   const view = document.getElementById("view");
   const err = document.getElementById("err");
   if (!window.THREE || !THREE.BufferGeometryUtils) {
@@ -103,11 +111,122 @@
   }
   renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 1.5));
   renderer.outputEncoding = THREE.sRGBEncoding;
+  renderer.toneMapping = THREE.ACESFilmicToneMapping;
+  renderer.toneMappingExposure = 1.0;
+
+  // ---------- realistic assets (CC0, see assets/CREDITS.md). "Simple graphics" skips them.
+  let simple = false;
+  try { simple = localStorage.getItem("world.simple") === "1"; } catch (e) {}
+  const loadmsg = document.getElementById("loadmsg");
+  const assets = { tex: {}, models: {}, sky: null };
+  if (!simple && THREE.GLTFLoader && THREE.RGBELoader) {
+    const TEX = ["floor", "wall", "roof", "concrete", "grass", "court", "wood"];
+    const MODELS = ["desk", "chair", "teacher-desk", "ceiling-fan", "shelf"];
+    const total = TEX.length * 2 + MODELS.length + 2;
+    let done = 0;
+    const tick = () => { done++; loadmsg.textContent = `Loading the school… ${Math.round((done / total) * 100)}%`; };
+    const texLoader = new THREE.TextureLoader();
+    const loadTex = (url, srgb) => new Promise((ok, fail) => texLoader.load(url, t => {
+      t.wrapS = t.wrapT = THREE.RepeatWrapping;
+      t.anisotropy = Math.min(4, renderer.capabilities.getMaxAnisotropy());
+      if (srgb) t.encoding = THREE.sRGBEncoding;
+      tick(); ok(t);
+    }, undefined, fail));
+    const gltf = new THREE.GLTFLoader();
+    try {
+      await Promise.all([
+        ...TEX.map(async n => {
+          assets.tex[n] = { map: await loadTex(`assets/tex/${n}_diff.jpg`, true), normal: await loadTex(`assets/tex/${n}_nor.jpg`, false) };
+        }),
+        ...MODELS.map(n => new Promise((ok, fail) => gltf.load(`assets/models/${n}.glb`, g => { assets.models[n] = g.scene; tick(); ok(); }, undefined, fail))),
+        new Promise((ok, fail) => new THREE.RGBELoader().setDataType(THREE.UnsignedByteType).load("assets/sky.hdr", t => { assets.sky = t; tick(); ok(); }, undefined, fail)),
+        loadTex("assets/sky.jpg", true).then(t => { assets.skyBg = t; })
+      ]);
+    } catch (e) {
+      console.warn("Realistic assets failed to load; using simple graphics.", e);
+      simple = true;
+    }
+  } else {
+    simple = true;
+  }
+  document.getElementById("loading").hidden = true;
+  const qualityBtn = document.getElementById("quality");
+  qualityBtn.setAttribute("aria-pressed", String(simple));
+  qualityBtn.addEventListener("click", () => {
+    try { localStorage.setItem("world.simple", simple ? "0" : "1"); } catch (e) {}
+    location.reload();
+  });
   view.appendChild(renderer.domElement);
 
-  const { scene, colliders, places, markers } = buildWorld(THREE);
+  const { scene, colliders, places, markers, materials: M, props } = buildWorld(THREE, { realFurniture: !simple });
   scene.background = new THREE.Color(0xa9d3ef);
   scene.fog = new THREE.Fog(0xa9d3ef, 60, 150);
+
+  if (!simple) {
+    // Sky: image-based lighting + visible sky
+    const pmrem = new THREE.PMREMGenerator(renderer);
+    const env = pmrem.fromEquirectangular(assets.sky).texture;
+    scene.environment = env;
+    assets.skyBg.wrapS = assets.skyBg.wrapT = THREE.ClampToEdgeWrapping;
+    assets.skyBg.mapping = THREE.EquirectangularReflectionMapping;
+    scene.background = assets.skyBg;
+    scene.fog = new THREE.Fog(0xc9dcea, 80, 180);
+    scene.traverse(o => { if (o.isLight) o.intensity *= 0.55; });   // the sky now does most of the lighting
+    // Real surface materials; colour = tint over the texture
+    const tint = { floor: 0xffffff, wall: 0xffeec4, roof: 0x8fbf9f, concrete: 0xffffff, grass: 0xa8d98a, court: 0x5d9fc8, wood: 0xffffff };
+    for (const [name, t] of Object.entries(assets.tex)) {
+      const m = M[name];
+      if (!m) continue;
+      m.map = t.map; m.normalMap = t.normal; m.normalScale.set(0.8, 0.8);
+      m.color.setHex(tint[name] ?? 0xffffff).convertSRGBToLinear();
+      m.needsUpdate = true;
+    }
+    for (const n of ["grassDark", "path"]) if (M[n]) { M[n].map = assets.tex.concrete.map; M[n].needsUpdate = true; }
+    // Pod tables: light wood. Tree crowns: grass texture as a leafy surface.
+    M.pod.map = assets.tex.wood.map; M.pod.color.setHex(0xffe2b8).convertSRGBToLinear(); M.pod.needsUpdate = true;
+    for (const n of ["leaf", "leaf2"]) { M[n].map = assets.tex.grass.map; M[n].normalMap = assets.tex.grass.normal; M[n].needsUpdate = true; }
+    M.wall.envMapIntensity = 1.35;
+    M.ceiling.color.setHex(0xffffff);
+    M.ceiling.envMapIntensity = 1.2;
+
+    // Real furniture: one InstancedMesh per model mesh → 35 desks or chairs cost one draw call each
+    const byKind = {};
+    props.forEach(p => (byKind[p.kind] = byKind[p.kind] || []).push(p));
+    const ROT = { desk: 0, chair: Math.PI, "teacher-desk": 0, "ceiling-fan": 0, shelf: 0 }; // model-facing fix-ups
+    const tmpObj = new THREE.Object3D();
+    const fans = [];
+    for (const [kind, list] of Object.entries(byKind)) {
+      const src = assets.models[kind];
+      if (!src) continue;
+      src.updateMatrixWorld(true);
+      src.traverse(mesh => {
+        if (!mesh.isMesh) return;
+        const inst = new THREE.InstancedMesh(mesh.geometry, mesh.material, list.length);
+        list.forEach((p, i) => {
+          tmpObj.position.set(p.x, p.y, p.z);
+          tmpObj.rotation.set(0, p.ry + (ROT[kind] || 0), 0);
+          tmpObj.updateMatrix();
+          inst.setMatrixAt(i, tmpObj.matrix.clone().multiply(mesh.matrixWorld));
+        });
+        inst.name = kind;
+        inst.frustumCulled = false; // instances are spread out; the source geometry's bounds sit at the origin
+        if (kind === "ceiling-fan") fans.push({ inst, list, local: mesh.matrixWorld.clone() });
+        scene.add(inst);
+      });
+    }
+    // Spin the fans slowly
+    const spin = new THREE.Matrix4(), base = new THREE.Matrix4();
+    let fanAngle = 0;
+    window.__spinFans = dt => {
+      fanAngle += dt * 2.2;
+      fans.forEach(f => f.list.forEach((p, i) => {
+        tmpObj.position.set(p.x, p.y, p.z); tmpObj.rotation.set(0, fanAngle, 0); tmpObj.updateMatrix();
+        base.copy(tmpObj.matrix).multiply(f.local);
+        f.inst.setMatrixAt(i, base);
+        f.inst.instanceMatrix.needsUpdate = true;
+      }));
+    };
+  }
 
   // School sign + board text (preview only; canvas textures)
   function textPlane(lines, w, h, bg, fg) {
@@ -293,6 +412,7 @@
       const nz = me.z + (fz * f - Math.sin(me.yaw) * s) * k * speed;
       [me.x, me.z] = collide(nx, nz);
     }
+    if (window.__spinFans) window.__spinFans(dt);
     camera.position.set(me.x, EYE, me.z);
     camera.rotation.set(me.pitch, me.yaw, 0, "YXZ");
     renderer.render(scene, camera);
