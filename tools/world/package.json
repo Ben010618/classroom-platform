@@ -1,0 +1,17 @@
+{
+  "name": "school-world",
+  "private": true,
+  "type": "module",
+  "description": "Bayanihan Demo School: walkable preview (index.html) and Hubs scene export (export.mjs) from one world definition (world.js).",
+  "scripts": {
+    "export": "node export.mjs",
+    "preview": "python -m http.server 8766"
+  },
+  "dependencies": {
+    "three": "0.128.0",
+    "@gltf-transform/core": "4.5.1",
+    "@gltf-transform/extensions": "4.5.1",
+    "@gltf-transform/functions": "4.5.1",
+    "draco3dgltf": "1.5.9"
+  }
+}
