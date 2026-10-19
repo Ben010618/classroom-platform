@@ -1,0 +1,312 @@
+<meta charset="utf-8">
+<title>Bayanihan Demo School</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<style>
+  :root {
+    --bg: #0f1512;
+    --panel: rgba(16, 24, 20, 0.82);
+    --ink: #eef3ef;
+    --muted: #a9b8af;
+    --accent: #7cc4a0;
+    --line: rgba(255, 255, 255, 0.14);
+    --ui: "Segoe UI", system-ui, -apple-system, Roboto, sans-serif;
+    color-scheme: dark;
+  }
+  html, body { height: 100%; }
+  body { margin: 0; background: var(--bg); color: var(--ink); font: 14px/1.4 var(--ui); overflow: hidden; touch-action: none; }
+  #view { position: fixed; inset: 0; }
+  canvas { display: block; width: 100%; height: 100%; }
+  .hud {
+    position: fixed; left: 0; right: 0; top: 0; z-index: 5; pointer-events: none;
+    padding-top: calc(10px + env(safe-area-inset-top, 0px));
+    padding-left: max(12px, env(safe-area-inset-left, 0px));
+    padding-right: max(12px, env(safe-area-inset-right, 0px));
+    display: flex; flex-wrap: wrap; gap: 8px; align-items: flex-start; justify-content: space-between;
+  }
+  .card { pointer-events: auto; background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 8px 10px; backdrop-filter: blur(6px); }
+  .title b { font-size: 15px; display: block; }
+  .title span { color: var(--muted); font-size: 12px; }
+  .go { display: flex; flex-wrap: wrap; gap: 6px; }
+  .go button, .toggle {
+    font: 600 12px var(--ui); color: var(--ink); background: rgba(255, 255, 255, 0.08); border: 1px solid var(--line);
+    border-radius: 8px; padding: 7px 10px; cursor: pointer;
+  }
+  .go button:hover, .toggle:hover { background: rgba(124, 196, 160, 0.22); }
+  .go button:focus-visible, .toggle:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+  .toggle[aria-pressed="true"] { background: rgba(124, 196, 160, 0.3); border-color: var(--accent); }
+  .bottom {
+    position: fixed; left: 0; right: 0; bottom: 0; z-index: 5; pointer-events: none;
+    padding-bottom: calc(10px + env(safe-area-inset-bottom, 0px));
+    padding-left: max(12px, env(safe-area-inset-left, 0px));
+    padding-right: max(12px, env(safe-area-inset-right, 0px));
+    display: flex; justify-content: space-between; align-items: flex-end; gap: 8px; flex-wrap: wrap;
+  }
+  .help { color: var(--muted); font-size: 12px; max-width: 44ch; }
+  .help kbd { font: 600 11px ui-monospace, Consolas, monospace; background: rgba(255,255,255,0.1); border: 1px solid var(--line); border-radius: 4px; padding: 0 4px; color: var(--ink); }
+  .stats { font: 500 11px ui-monospace, Consolas, monospace; color: var(--muted); font-variant-numeric: tabular-nums; white-space: pre; }
+  #where { color: var(--accent); font-weight: 600; }
+  .stick { position: fixed; z-index: 4; width: 110px; height: 110px; border-radius: 50%; border: 2px solid var(--line); background: rgba(255,255,255,0.05); pointer-events: none; transform: translate(-50%, -50%); }
+  .stick i { position: absolute; left: 50%; top: 50%; width: 44px; height: 44px; margin: -22px 0 0 -22px; border-radius: 50%; background: rgba(124,196,160,0.55); }
+  #err { position: fixed; inset: 0; display: grid; place-items: center; text-align: center; padding: 24px; }
+  @media (max-width: 560px) { .help { display: none; } }
+</style>
+
+<div id="view"></div>
+<div id="err" hidden></div>
+
+<div class="hud">
+  <div class="card title">
+    <b>Bayanihan Demo School</b>
+    <span>You are at: <span id="where">Main gate</span></span>
+  </div>
+  <div class="card go" role="group" aria-label="Go to">
+    <button type="button" data-go="gate">Gate</button>
+    <button type="button" data-go="plaza">Flag plaza</button>
+    <button type="button" data-go="classroom">Classroom 1</button>
+    <button type="button" data-go="podium">Podium</button>
+    <button type="button" data-go="court">Covered court</button>
+    <button type="button" class="toggle" id="markers" aria-pressed="false">Hubs markers</button>
+  </div>
+</div>
+
+<div class="bottom">
+  <div class="card help">Move with <kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd> or arrow keys, hold <kbd>Shift</kbd> to run, drag to look around. On a phone: left thumb moves, right thumb looks.</div>
+  <div class="card stats" id="stats"></div>
+</div>
+
+<div class="stick" id="stick" hidden><i></i></div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/utils/BufferGeometryUtils.js"></script>
+<script src="world.js"></script>
+
+<script>
+"use strict";
+// ============================================================================================
+// WALKABLE PREVIEW (browser only)
+// ============================================================================================
+(function preview() {
+  const view = document.getElementById("view");
+  const err = document.getElementById("err");
+  if (!window.THREE || !THREE.BufferGeometryUtils) {
+    err.hidden = false;
+    err.textContent = "The 3D library didn't load. Check your internet connection and reload.";
+    return;
+  }
+  let renderer;
+  try {
+    renderer = new THREE.WebGLRenderer({ antialias: false, powerPreference: "high-performance" });
+  } catch (e) {
+    err.hidden = false;
+    err.textContent = "This device or browser can't show 3D graphics (WebGL is unavailable).";
+    return;
+  }
+  renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 1.5));
+  renderer.outputEncoding = THREE.sRGBEncoding;
+  view.appendChild(renderer.domElement);
+
+  const { scene, colliders, places, markers } = buildWorld(THREE);
+  scene.background = new THREE.Color(0xa9d3ef);
+  scene.fog = new THREE.Fog(0xa9d3ef, 60, 150);
+
+  // School sign + board text (preview only; canvas textures)
+  function textPlane(lines, w, h, bg, fg) {
+    // ~200 px per metre, capped so textures stay small
+    const ppm = Math.min(200, 2048 / w);
+    const c = document.createElement("canvas");
+    c.width = Math.round(w * ppm); c.height = Math.round(h * ppm);
+    const g = c.getContext("2d");
+    g.fillStyle = bg; g.fillRect(0, 0, c.width, c.height);
+    g.fillStyle = fg; g.textAlign = "center"; g.textBaseline = "middle";
+    const two = lines.length > 1;
+    lines.forEach((t, i) => {
+      const weight = i === 0 ? "700 " : "500 ";
+      let px = Math.round(c.height * (two ? (i === 0 ? 0.5 : 0.3) : 0.66));
+      g.font = weight + px + "px Segoe UI, sans-serif";
+      const fit = (c.width * 0.92) / g.measureText(t).width;   // shrink to fit the board
+      if (fit < 1) { px = Math.floor(px * fit); g.font = weight + px + "px Segoe UI, sans-serif"; }
+      g.fillText(t, c.width / 2, c.height * (two ? (i === 0 ? 0.36 : 0.78) : 0.53));
+    });
+    const tex = new THREE.CanvasTexture(c);
+    tex.encoding = THREE.sRGBEncoding;
+    return new THREE.Mesh(new THREE.PlaneGeometry(w, h), new THREE.MeshBasicMaterial({ map: tex }));
+  }
+  const sign = textPlane(["BAYANIHAN DEMO SCHOOL", "Paaralang Bayanihan"], 13.6, 0.76, "#2f6b4f", "#f3efe6");
+  sign.position.set(-2, 2.83, -2.42);
+  scene.add(sign);
+  const gateSign = textPlane(["Bayanihan Demo School"], 11.6, 0.6, "#2f6b4f", "#f3efe6");
+  gateSign.position.set(0, 4.0, 70.52);
+  gateSign.rotation.y = Math.PI;
+  scene.add(gateSign);
+  const gateSignIn = gateSign.clone(); gateSignIn.position.z = 69.48; gateSignIn.rotation.y = 0; scene.add(gateSignIn);
+  const boardText = textPlane(["Welcome, Class!", "Maligayang pagdating!"], 5.6, 1.4, "#2b5a40", "#e9efe6");
+  boardText.position.set(-23, 1.7, -25.78);
+  scene.add(boardText);
+  const roomSign = textPlane(["Room 1"], 1.4, 0.35, "#2f6b4f", "#f3efe6");
+  roomSign.position.set(-18.2, 2.45, -5.85);
+  scene.add(roomSign);
+
+  // Hubs marker visualisation (toggle): seats = green discs, go-to points = rings, pods = boxes, screen = frame
+  const markerViz = new THREE.Group();
+  markerViz.visible = false;
+  scene.add(markerViz);
+  const vmat = c => new THREE.MeshBasicMaterial({ color: c, transparent: true, opacity: 0.55, depthWrite: false });
+  markers.children.forEach(m => {
+    const c = m.userData.MOZ_hubs_components || {};
+    let v = null;
+    if (c["audio-zone"]) {
+      v = new THREE.Mesh(new THREE.BoxGeometry(1, 1, 1), vmat(0xf0a640));
+      v.scale.copy(m.scale);
+    } else if (c["media-frame"]) {
+      const b = c["media-frame"].bounds;
+      v = new THREE.Mesh(new THREE.PlaneGeometry(b.x, b.y), vmat(0x8ab8f0));
+    } else if (c.waypoint) {
+      const seat = c.waypoint.canBeOccupied;
+      v = new THREE.Mesh(seat ? new THREE.CircleGeometry(0.22, 16) : new THREE.RingGeometry(0.3, 0.45, 24), vmat(seat ? 0x4cc584 : (c.waypoint.canBeSpawnPoint ? 0xffffff : 0x8ab8f0)));
+      v.rotation.x = -Math.PI / 2;
+      v.position.y = 0.08;
+    }
+    if (v) {
+      const holder = new THREE.Group();
+      holder.position.copy(m.position);
+      holder.rotation.y = m.rotation.y;
+      holder.add(v);
+      markerViz.add(holder);
+    }
+  });
+  const markersBtn = document.getElementById("markers");
+  markersBtn.addEventListener("click", () => {
+    markerViz.visible = !markerViz.visible;
+    markersBtn.setAttribute("aria-pressed", String(markerViz.visible));
+  });
+
+  // ---------- first-person walker
+  const camera = new THREE.PerspectiveCamera(70, 1, 0.05, 400);
+  const EYE = 1.6, RADIUS = 0.3;
+  const me = { x: 0, z: 64, yaw: 0, pitch: -0.04 };
+  const whereEl = document.getElementById("where");
+  function go(key) {
+    const p = places[key];
+    me.x = p.x; me.z = p.z; me.yaw = p.yaw; me.pitch = -0.04;
+    whereEl.textContent = p.label;
+  }
+  document.querySelectorAll("[data-go]").forEach(b => b.addEventListener("click", () => go(b.dataset.go)));
+
+  function collide(nx, nz) {
+    for (const [x0, z0, x1, z1] of colliders) {
+      const cx = Math.max(x0, Math.min(nx, x1)), cz = Math.max(z0, Math.min(nz, z1));
+      const dx = nx - cx, dz = nz - cz, d2 = dx * dx + dz * dz;
+      if (d2 < RADIUS * RADIUS) {
+        if (d2 > 1e-9) {
+          const d = Math.sqrt(d2);
+          nx = cx + (dx / d) * RADIUS; nz = cz + (dz / d) * RADIUS;
+        } else {
+          // inside the box: push out along the shortest axis
+          const pushes = [[nx - x0, -1, 0], [x1 - nx, 1, 0], [nz - z0, 0, -1], [z1 - nz, 0, 1]].sort((a, b) => a[0] - b[0]);
+          nx += pushes[0][1] * (pushes[0][0] + RADIUS); nz += pushes[0][2] * (pushes[0][0] + RADIUS);
+        }
+      }
+    }
+    return [nx, nz];
+  }
+  function area() {
+    if (me.x > -30 && me.x < -16 && me.z > -26 && me.z < -6) return me.z < -21 ? "Podium" : "Classroom 1";
+    if (me.x > 33 && me.x < 70 && me.z > -18 && me.z < 8) return "Covered court";
+    if (me.z > 60) return "Main gate";
+    if (me.z > -3 && me.z < 24 && Math.abs(me.x) < 34) return "Flag plaza";
+    if (me.z > -6 && me.z < -3) return "Veranda";
+    return "School grounds";
+  }
+
+  const keys = new Set();
+  addEventListener("keydown", e => { if (!(e.target.closest && e.target.closest("button"))) keys.add(e.code); });
+  addEventListener("keyup", e => keys.delete(e.code));
+  addEventListener("blur", () => keys.clear());
+
+  // pointer: desktop drag = look; touch: left half = move stick, right half = look
+  const stick = document.getElementById("stick");
+  const stickKnob = stick.querySelector("i");
+  let move = null, look = null;
+  const moveVec = { x: 0, y: 0 };
+  renderer.domElement.addEventListener("pointerdown", e => {
+    renderer.domElement.setPointerCapture(e.pointerId);
+    const touchMove = e.pointerType === "touch" && e.clientX < innerWidth / 2 && !move;
+    if (touchMove) {
+      move = { id: e.pointerId, x0: e.clientX, y0: e.clientY };
+      stick.hidden = false; stick.style.left = e.clientX + "px"; stick.style.top = e.clientY + "px";
+      stickKnob.style.transform = "";
+    } else if (!look) {
+      look = { id: e.pointerId, x: e.clientX, y: e.clientY };
+    }
+  });
+  renderer.domElement.addEventListener("pointermove", e => {
+    if (move && e.pointerId === move.id) {
+      let dx = e.clientX - move.x0, dy = e.clientY - move.y0;
+      const len = Math.hypot(dx, dy), max = 45;
+      if (len > max) { dx *= max / len; dy *= max / len; }
+      moveVec.x = dx / max; moveVec.y = dy / max;
+      stickKnob.style.transform = `translate(${dx}px, ${dy}px)`;
+    } else if (look && e.pointerId === look.id) {
+      const s = e.pointerType === "touch" ? 0.006 : 0.004;
+      me.yaw -= (e.clientX - look.x) * s;
+      me.pitch = Math.max(-1.3, Math.min(1.3, me.pitch - (e.clientY - look.y) * s));
+      look.x = e.clientX; look.y = e.clientY;
+    }
+  });
+  const end = e => {
+    if (move && e.pointerId === move.id) { move = null; moveVec.x = moveVec.y = 0; stick.hidden = true; }
+    if (look && e.pointerId === look.id) look = null;
+  };
+  renderer.domElement.addEventListener("pointerup", end);
+  renderer.domElement.addEventListener("pointercancel", end);
+
+  function resize() {
+    const w = view.clientWidth, h = view.clientHeight;
+    renderer.setSize(w, h, false);
+    camera.aspect = w / h;
+    camera.updateProjectionMatrix();
+  }
+  addEventListener("resize", resize);
+  resize();
+
+  const statsEl = document.getElementById("stats");
+  let last = performance.now(), frames = 0, fpsT = last, fps = 0, lastArea = "";
+  function frame(now) {
+    const dt = Math.min(0.05, (now - last) / 1000);
+    last = now;
+    let f = 0, s = 0;
+    if (keys.has("KeyW") || keys.has("ArrowUp")) f += 1;
+    if (keys.has("KeyS") || keys.has("ArrowDown")) f -= 1;
+    if (keys.has("KeyA")) s -= 1;
+    if (keys.has("KeyD")) s += 1;
+    if (keys.has("ArrowLeft")) me.yaw += 1.8 * dt;
+    if (keys.has("ArrowRight")) me.yaw -= 1.8 * dt;
+    if (keys.has("KeyQ")) me.yaw += 1.8 * dt;
+    if (keys.has("KeyE")) me.yaw -= 1.8 * dt;
+    f -= moveVec.y; s += moveVec.x;
+    const speed = (keys.has("ShiftLeft") || keys.has("ShiftRight") ? 6 : 3) * dt;
+    const len = Math.hypot(f, s);
+    if (len > 0.01) {
+      const k = Math.min(1, len) / len;
+      const fx = -Math.sin(me.yaw), fz = -Math.cos(me.yaw);
+      const nx = me.x + (fx * f + Math.cos(me.yaw) * s) * k * speed;
+      const nz = me.z + (fz * f - Math.sin(me.yaw) * s) * k * speed;
+      [me.x, me.z] = collide(nx, nz);
+    }
+    camera.position.set(me.x, EYE, me.z);
+    camera.rotation.set(me.pitch, me.yaw, 0, "YXZ");
+    renderer.render(scene, camera);
+
+    frames++;
+    if (now - fpsT > 500) {
+      fps = Math.round((frames * 1000) / (now - fpsT)); frames = 0; fpsT = now;
+      statsEl.textContent = `${fps} fps · ${renderer.info.render.calls} draws · ${(renderer.info.render.triangles / 1000).toFixed(1)}k tris`;
+      const a = area();
+      if (a !== lastArea) { whereEl.textContent = a; lastArea = a; }
+    }
+    requestAnimationFrame(frame);
+  }
+  go("gate");
+  requestAnimationFrame(frame);
+})();
+</script>
