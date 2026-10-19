@@ -1,0 +1,33 @@
+<!doctype html><meta charset="utf-8"><title>char test</title>
+<style>html,body{margin:0;height:100%;background:#9cc}canvas{display:block}</style><body>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/GLTFLoader.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/utils/SkeletonUtils.js"></script>
+<script src="avatar.js"></script><script src="character.js"></script>
+<script>
+(async () => {
+  const r = new THREE.WebGLRenderer({ antialias: true }); r.setSize(1280, 720); r.outputEncoding = THREE.sRGBEncoding; r.toneMapping = THREE.ACESFilmicToneMapping; document.body.appendChild(r.domElement);
+  const s = new THREE.Scene(); s.background = new THREE.Color(0xbfd8e6);
+  s.add(new THREE.HemisphereLight(0xffffff, 0x8a8170, 0.9)); const d = new THREE.DirectionalLight(0xfff2dc, 1.0); d.position.set(3, 6, -4); s.add(d);
+  const g = new THREE.Mesh(new THREE.PlaneGeometry(30, 30).rotateX(-Math.PI / 2), new THREE.MeshStandardMaterial({ color: 0xc8c2b4 })); s.add(g);
+  const cam = new THREE.PerspectiveCamera(35, 1280 / 720, 0.1, 100); cam.position.set(0, 1.5, -7); cam.lookAt(0, 1.0, 0); if (location.hash === '#close') { cam.position.set(0.8, 1.7, -2.2); cam.lookAt(0.8, 1.55, 0); }
+  await Characters.load(THREE, "assets/characters/", "t");
+  const looks = [
+    [{ name: "Ana", skin: "a", hair: "long", hairColor: "black", outfit: "blouse" }, "idle", {}],
+    [{ name: "Ben", skin: "c", hair: "short", hairColor: "black", outfit: "polo" }, "walk", {}],
+    [{ name: "Carla", skin: "d", hair: "bun", hairColor: "brown", outfit: "pe" }, "run", {}],
+    [{ name: "Dino", skin: "e", hair: "buzz", hairColor: "black", outfit: "casual" }, "hand", {}],
+    [{ name: "Ms. Santos", skin: "b", hair: "bun", hairColor: "auburn", outfit: "teacher" }, "talk", { role: "teacher" }]
+  ];
+  const chars = looks.map(([look, act, o], i) => {
+    const c = Characters.create(THREE, look, o); c.position.set((i - 2) * 1.5, 0, 0); s.add(c);
+    if (act === "walk") c.userData.setMove(1.4, false); if (act === "run") c.userData.setMove(5.5, false);
+    if (act === "hand") c.userData.setHand(true); if (act === "talk") c.userData.setTalking(1);
+    return c;
+  });
+  let last = performance.now(), t0 = last;
+  (function loop(now) { const dt = Math.min(0.05, (now - last) / 1000); last = now; chars.forEach(c => c.userData.tick(dt)); r.render(s, cam);
+    window.__frames = (window.__frames || 0) + 1; window.__info = r.info.render.triangles; requestAnimationFrame(loop); })(last);
+  window.__ok = true;
+})().catch(e => { document.title = "ERR " + e.message; console.error(e); });
+</script>

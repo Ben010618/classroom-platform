@@ -9,11 +9,12 @@
 (typeof window !== "undefined" ? window : globalThis).buildWorld = function buildWorld(THREE, opts = {}) {
   const realFurniture = !!opts.realFurniture;
   const props = []; // { kind, x, y, z, ry }
+  const ramps = []; // { x0, x1, z0, z1, y0, y1 }: hidden slopes over stairs, rising toward +x (physics only)
   const trees = []; // { x, z, r } for soft ground shadows in the preview
   const signs = []; // { lines | flag, x, y, z, ry, w, h, bg, fg } — painted as panels by the preview
   const scene = new THREE.Scene();
   scene.name = "KaturoUniversity";
-  const colliders = []; // axis-aligned XZ rectangles the walker can't enter: [x0, z0, x1, z1]
+  const colliders = []; // axis-aligned boxes: [x0, z0, x1, z1, y0, y1] (the simple walker uses only x/z)
 
   // ---------- palette (one material per colour → one draw call per colour after merging)
   const M = {};
@@ -89,7 +90,7 @@
   // box with its BOTTOM at y
   function box(m, x, y, z, w, h, d, ry = 0, collide = false) {
     put(m, new THREE.BoxGeometry(w, h, d), x, y + h / 2, z, ry);
-    if (collide) colliders.push([x - w / 2, z - d / 2, x + w / 2, z + d / 2]);
+    if (collide) colliders.push([x - w / 2, z - d / 2, x + w / 2, z + d / 2, y, y + h]);
   }
   function cyl(m, x, y, z, r, h, seg = 8, rTop = r) {
     put(m, new THREE.CylinderGeometry(rTop, r, h, seg), x, y + h / 2, z);
@@ -156,7 +157,7 @@
     }
     put("metal", new THREE.BoxGeometry(0.06, 0.06, len), (x0 + x1) / 2, fenceH - 0.15, (z0 + z1) / 2, ang);
     put("metal", new THREE.BoxGeometry(0.06, 0.06, len), (x0 + x1) / 2, 0.6, (z0 + z1) / 2, ang);
-    colliders.push([Math.min(x0, x1) - 0.15, Math.min(z0, z1) - 0.15, Math.max(x0, x1) + 0.15, Math.max(z0, z1) + 0.15]);
+    colliders.push([Math.min(x0, x1) - 0.15, Math.min(z0, z1) - 0.15, Math.max(x0, x1) + 0.15, Math.max(z0, z1) + 0.15, 0, fenceH]);
   };
   fence(-70, -70, 70, -70);
   fence(-70, -70, -70, 70);
@@ -241,10 +242,10 @@
   box("trim", cx, 1.05, -23.6, 1.3, 0.05, 0.7);
   if (realFurniture) {
     props.push({ kind: "teacher-desk", x: cx + 3.8, y: 0, z: -23.9, ry: Math.PI });
-    colliders.push([cx + 2.8, -24.4, cx + 4.8, -23.4]);
+    colliders.push([cx + 2.8, -24.4, cx + 4.8, -23.4, 0, 0.8]);
     props.push({ kind: "shelf", x: -29.85, y: 0, z: -19.5, ry: Math.PI / 2 });   // book shelves on the west wall
     props.push({ kind: "shelf", x: -29.85, y: 0, z: -18.4, ry: Math.PI / 2 });
-    colliders.push([-30, -20.1, -29.55, -17.8]);
+    colliders.push([-30, -20.1, -29.55, -17.8, 0, 2.1]);
     for (const [fx, fz] of [[-26.5, -19.5], [-19.5, -19.5], [-26.5, -13], [-19.5, -13]]) props.push({ kind: "ceiling-fan", x: fx, y: 3.54, z: fz, ry: 0 });
   } else {
     box("wood", cx + 3.6, 0, -23.8, 1.6, 0.76, 0.8, 0, true);          // teacher's table
@@ -327,6 +328,7 @@
   const S = { x: 24, z: 6 };
   box("concrete", S.x, 0, S.z, 5.5, 1.0, 9, 0, true);                   // raised stage, facing west toward the plaza
   for (let k = 0; k < 3; k++) box("concrete", S.x - 3.05 - k * 0.3, 0, S.z, 0.3, 0.75 - k * 0.25, 2.4);
+  ramps.push({ x0: S.x - 4.25, x1: S.x - 2.75, z0: S.z - 1.2, z1: S.z + 1.2, y0: 0, y1: 1.0 });   // physics sees the steps as a smooth ramp
   box("wall", S.x + 2.6, 1.0, S.z, 0.3, 3.2, 9);                         // backdrop wall
   box("trim", S.x + 2.4, 1.0, S.z, 0.06, 3.0, 8.6);                      // backdrop panel
   for (const pz of [S.z - 4.4, S.z + 4.4]) box("metal", S.x - 2.6, 1.0, pz, 0.2, 3.4, 0.2);
@@ -405,7 +407,7 @@
       const rx = (bx * Math.cos(a) - bz * Math.sin(a)) * r, rz = (bx * Math.sin(a) + bz * Math.cos(a)) * r;
       put((i + k) % 3 === 0 ? "leaf2" : "leaf", g, x + rx, h + by * r * 0.8, z + rz, i + k);
     });
-    colliders.push([x - 0.35, z - 0.35, x + 0.35, z + 0.35]);
+    colliders.push([x - 0.35, z - 0.35, x + 0.35, z + 0.35, 0, 3]);
     trees.push({ x, z, r: r * 1.5 });
   });
 
@@ -425,7 +427,7 @@
       cyl(m, bx, 0, bz, 0.26, 0.85, 10, 0.29);
       cyl("dark", bx, 0.85, bz, 0.3, 0.05, 10);
     });
-    colliders.push([x - 0.95, z - 0.35, x + 0.95, z + 0.35]);
+    colliders.push([x - 0.95, z - 0.35, x + 0.95, z + 0.35, 0, 0.9]);
   }
   bins(-11.5, -1.8, 0);
   bins(8.5, -1.8, 0);
@@ -504,7 +506,7 @@
     stage: { x: 12, z: 6, yaw: -Math.PI / 2, label: "Stage" },
     canteen: { x: -46, z: 14, yaw: 0.25, label: "Canteen" },
     library: { x: -45, z: -6.5, yaw: 0.3, label: "Library" },
-    garden: { x: -6, z: -28.5, yaw: 0, label: "Vegetable garden" }
+    garden: { x: -6, z: -30.5, yaw: 0, label: "Vegetable garden" }
   };
-  return { scene, colliders, places, markers, materials: M, props, signs, trees };
+  return { scene, colliders, places, markers, materials: M, props, signs, trees, ramps };
 };

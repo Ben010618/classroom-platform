@@ -107,6 +107,7 @@ $("mp-hand").addEventListener("click", () => {
   handUp = !handUp;
   $("mp-hand").setAttribute("aria-pressed", String(handUp));
   $("mp-hand").textContent = handUp ? "Lower hand" : "Raise hand";
+  W.localHand = handUp;
   sendPose(true);
 });
 
@@ -116,6 +117,7 @@ async function join() {
   role = $("mp-teacher").checked ? "teacher" : "learner";
   store.set("world.look", look);
   store.set("world.room", code);
+  if (W.player && W.player.setLook) W.player.setLook(look);
   panel.hidden = true;
   status("Connecting…");
   $("mp-bar").hidden = false;
@@ -160,7 +162,9 @@ async function join() {
   onHello((data, id) => {
     const existing = peers.get(id);
     if (existing) scene.remove(existing.avatar);
-    const avatar = A.buildAvatar(THREE, data.look, { role: data.role });
+    const avatar = window.Characters && window.Characters.ready() && !W.simple
+      ? window.Characters.create(THREE, data.look, { role: data.role })
+      : A.buildAvatar(THREE, data.look, { role: data.role });
     scene.add(avatar);
     peers.set(id, { ...(existing || {}), avatar, look: data.look, role: data.role, pose: existing?.pose || { x: 0, z: 64, yaw: 0 }, target: existing?.target || { x: 0, z: 64, yaw: 0 } });
     if (!existing) toast(`${data.look.name} joined${data.role === "teacher" ? " (teacher)" : ""}`);
@@ -263,7 +267,8 @@ let sendTimer = 0;
 let lastSent = "";
 function sendPose(force) {
   if (!W.sendPoseRaw) return;
-  const p = { x: +me.x.toFixed(2), z: +me.z.toFixed(2), yaw: +me.yaw.toFixed(2), hand: handUp, muted, sit: !!me.locked };
+  const p = { x: +me.x.toFixed(2), z: +me.z.toFixed(2), y: +(me.y || 0).toFixed(2), yaw: +((me.face ?? me.yaw)).toFixed(2),
+    spd: +(me.speed || 0).toFixed(1), air: !!me.air, hand: handUp, muted, sit: !!(me.sitting || me.locked) };
   const key = JSON.stringify(p);
   if (force || key !== lastSent) { W.sendPoseRaw(p); lastSent = key; }
 }
@@ -286,8 +291,10 @@ function tick(dt) {
     p.pose.z += (p.target.z - p.pose.z) * k;
     let dy = p.target.yaw - p.pose.yaw; dy = Math.atan2(Math.sin(dy), Math.cos(dy));
     p.pose.yaw += dy * k;
-    p.avatar.position.set(p.pose.x, 0, p.pose.z);
+    p.pose.y = (p.pose.y ?? 0) + ((p.target.y ?? 0) - (p.pose.y ?? 0)) * k;
+    p.avatar.position.set(p.pose.x, p.pose.y, p.pose.z);
     p.avatar.rotation.y = p.pose.yaw;
+    if (p.avatar.userData.setMove) p.avatar.userData.setMove(p.target.spd || 0, !!p.target.air);
     p.avatar.userData.tick(dt);
     if (p.panner) {
       p.panner.positionX ? (p.panner.positionX.value = p.pose.x, p.panner.positionY.value = 1.6, p.panner.positionZ.value = p.pose.z) : p.panner.setPosition(p.pose.x, 1.6, p.pose.z);
