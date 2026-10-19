@@ -1,0 +1,27 @@
+// Codespaces / Dev Containers setup for the classroom monorepo.
+// Works now: install, lint, unit tests, production build, Storybook (build the Teacher HUD UI in isolation).
+// Not here: voice. Codespaces only forwards HTTP(S), so WebRTC voice is tested on our own server (Phase 1).
+{
+  "name": "classroom-platform",
+  "image": "mcr.microsoft.com/devcontainers/javascript-node:22",
+  "hostRequirements": { "cpus": 4, "memory": "16gb" },
+  "features": {
+    "ghcr.io/devcontainers/features/docker-in-docker:2": {},
+    "ghcr.io/devcontainers/features/kubectl-helm-minikube:1": { "minikube": "none" }
+  },
+  "postCreateCommand": "cd hubs && npm ci",
+  "forwardPorts": [6006, 8080, 8765],
+  "portsAttributes": {
+    "6006": { "label": "Storybook (cd hubs && npm run storybook)", "onAutoForward": "openBrowser" },
+    "8080": { "label": "Hubs client dev server" },
+    "8765": { "label": "Device check (cd tools/smoke-test && python3 -m http.server 8765)" }
+  },
+  "customizations": {
+    "vscode": {
+      "extensions": ["dbaeumer.vscode-eslint", "esbenp.prettier-vscode"]
+    },
+    "codespaces": {
+      "openFiles": ["README.md", "hubs/src/classroom/README.md"]
+    }
+  }
+}

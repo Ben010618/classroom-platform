@@ -122,7 +122,7 @@ We inspected our current Frame on 2026-10-19 using a headless browser and its ne
 ```mermaid
 graph TD
     subgraph Client["Browser (Android phone / lab laptop / Quest)"]
-        HC[Custom Hubs Client fork<br/>+ Teacher HUD add-on]
+        HC[Custom Hubs Client (hubs/ subtree)<br/>+ Teacher HUD add-on]
     end
     subgraph K3s["Single-node K3s (Hetzner)"]
         ING[Ingress + Let's Encrypt]
@@ -146,9 +146,9 @@ graph TD
     ST --> BK
 ```
 
-**Rules for customising the code (so upstream updates stay mergeable):**
+1. **One repo of our own** (`Ben010618/classroom-platform`). The Hubs client lives in `hubs/` as a git subtree. Keep our changes **thin**: all classroom features go in `hubs/src/classroom/` (new files stay under our control even with MPL).
 1. Keep the fork **thin**. Put all classroom features in a new `src/classroom/` folder (new files stay under our control even with MPL).
-2. Hook into existing systems through the smallest possible edits, and list each one in `UPSTREAM_PATCHES.md`.
+3. Pull upstream `Hubs-Foundation/hubs` once a month with `git subtree pull --prefix hubs hubs-upstream master --squash`.
 3. Rebase onto upstream `Hubs-Foundation/hubs` once a month.
 4. Build the custom client into a Docker image in CI, then swap the image tag in the CE deployment yaml.
 
@@ -277,7 +277,7 @@ So the defaults are: **students join muted, video tiles are off, and audio is on
 - [ ] Get the reference devices (budget Android phone + DepEd lab laptop), register the domain, and open the hosting account (Singapore/Manila).
 - [ ] Write to the **Schools Division Office**: the ICT unit (allowlist, school internet details) and the **DPO** (pilot approval, PIA, consent forms). This paperwork takes the longest, so start it first.
 - [ ] Measure round-trip time to candidate server regions from Globe, Smart, DITO and the school ISP.
-- [ ] Set up the repo: fork `hubs`, create `src/classroom/` and `UPSTREAM_PATCHES.md`, and run CI to build the client image.
+- [x] Set up our own repo: Hubs as a `hubs/` subtree, `hubs/src/classroom/`, `UPSTREAM_PATCHES.md`, and a CI workflow to build the client image.
 
 ### Phase 1 — Stand up and validate (Days 3–7)
 - [ ] Deploy CE on single-node K3s (official "hello-world VM" path) plus coturn on 443/TLS.
@@ -332,7 +332,7 @@ Run it in parallel, behind the Hubs pilot, and never replace a working system mi
 | 2c | Brownouts or signal drops mid-lesson | High | Medium | Auto-reconnect to seat, "reconnecting" badge, short lesson segments |
 | 2d | DPO approval or consent forms delay the pilot | Medium | High | Start the paperwork in Phase 0, in parallel with engineering |
 | 3 | Kubernetes ops overload a small team | Medium | High | Single-node K3s, one runbook, managed DB later |
-| 4 | Hubs Foundation slows down | Low–Med | High | Thin fork, MPL lets us self-maintain, Phase 5 escape hatch |
+| 4 | Hubs Foundation slows down | Low–Med | High | Thin changes on a subtree, MPL lets us self-maintain, Phase 5 escape hatch |
 | 5 | Student misconduct in rooms | High | Medium | Locked permissions by default, kick/ban, report button, teacher-present rule |
 | 6 | Privacy or compliance incident | Low | Critical | Guest-only students, no recording, retention purge, written security program |
 | 7 | SFU overload at peak periods | Medium | High | Load test, room cap of 35, add an SFU node |
@@ -343,7 +343,7 @@ Run it in parallel, behind the Hubs pilot, and never replace a working system mi
 
 | Role | Owns |
 | :--- | :--- |
-| **Head programmer** | Fork strategy, Teacher HUD, custom features, upstream rebases |
+| **Head programmer** | Repo and subtree strategy, Teacher HUD, custom features, upstream rebases |
 | **Ops lead** | K3s, coturn, monitoring, backups, school IT liaison |
 | **3D artist** (can be part-time) | Classroom scene, Audio Zones, asset pipeline |
 | **Education lead / pilot teacher** | Lesson design, Gate 3 usability testing, feedback |
@@ -356,7 +356,7 @@ Run it in parallel, behind the Hubs pilot, and never replace a working system mi
 
 ### Prompt A′ — Teacher HUD on Hubs
 ```text
-Context: We maintain a thin fork of Hubs-Foundation/hubs (MPL-2.0). All new code lives in src/classroom/.
+Context: Our repo Ben010618/classroom-platform contains the Hubs client (Hubs-Foundation/hubs, MPL-2.0) as a git subtree in hubs/. All new code lives in hubs/src/classroom/.
 Task: Build a Teacher HUD React panel shown only when the local user has the owner or creator role in Hubs presence.
 Requirements:
 1. Reuse the existing room-settings/member-permissions update calls for Lock Spawn, Lock Draw and Lock Voice. Do not reimplement permissions.

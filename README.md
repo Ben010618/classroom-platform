@@ -1,40 +1,56 @@
-# 3D Virtual Classroom — Workspace
+# Classroom Platform
 
-Plan: [BLUEPRINT.md](BLUEPRINT.md) · Device check (live): https://ben010618.github.io/classroom-platform/ · Hubs fork: https://github.com/Ben010618/hubs (branch `classroom`)
+A self-hosted, browser-based **3D virtual classroom** for Philippine public schools. Students join from a budget Android phone or a school lab laptop with nothing to install. Teachers get one control panel: mute all, lock tools, Gather All, Lecture Mode and a hand-raise queue. Student data stays on infrastructure the school controls (RA 10173).
 
-## Layout
+Built on [Hubs Community Edition](https://github.com/Hubs-Foundation/hubs) (MPL-2.0).
 
-| Path | What |
+| | |
 | :--- | :--- |
-| `tools/smoke-test/` | Device and network check page (EN/FIL). Static and dependency-free; edit `config.js` only. |
-| `docs/letters/` | Draft letters to the Schools Division Office. **Git-ignored: kept on the local PC only, never pushed.** |
-| `C:\dev\classroom\hubs` | Our fork: https://github.com/Ben010618/hubs, branch `classroom`. Kept **outside OneDrive** on purpose. Classroom code goes in `src/classroom/`, and the patch log is `UPSTREAM_PATCHES.md`. |
+| **Plan** | [BLUEPRINT.md](BLUEPRINT.md): repo choice, architecture, ops, privacy, roadmap with go/no-go gates |
+| **Device check (live)** | https://ben010618.github.io/classroom-platform/ |
+| **Roadmap** | Issues + the "3D Classroom Roadmap" project board ([Phase 0 tracker](docs/phase-0-tracker.md) until then) |
 
-## Phase 0 — Prep (Days 1–2)
+## Repository layout
 
-| # | Task | Owner | Status |
-| :- | :--- | :--- | :--- |
-| 0.1 | Network smoke-test page (`tools/smoke-test/`) | Head programmer | ✅ Built and tested locally (Chrome, EN + FIL) |
-| 0.2 | Draft letters to SDO ICT unit + DPO (`docs/letters/`) | Privacy owner | ✅ Drafted, **needs names, signatures and sending** |
-| 0.3 | Fork `Hubs-Foundation/hubs` to our GitHub and set up `src/classroom/` | Head programmer | ✅ Forked, `classroom` branch pushed. Code audit confirmed megaphone, hand raise, PDF sync and permissions are built in. |
-| 0.4 | CI that builds the custom Hubs client image | Head programmer | 🟡 Reuse the upstream `custom-docker-build-push` workflow. **To do (needs you):** enable Actions on the fork; add repo variables `REGISTRY_BASE_URL=ghcr.io` and `REGISTRY_NAMESPACE=ben010618`; add secrets `REGISTRY_USERNAME` and `REGISTRY_PASSWORD` (a PAT with `write:packages`). |
-| 0.5 | Reference devices: budget Android phone (3–4 GB) + DepEd lab laptop | Ops lead | ⬜ |
-| 0.6 | Domain name (e.g. `*.edu.ph` via the Division, or a project domain) | Ops lead | ⬜ |
-| 0.7 | Hosting account (Hetzner Cloud Singapore, or a Manila VPS) | Ops lead | ⬜ |
-| 0.8 | Measure RTT to candidate regions from Globe / Smart / DITO / school ISP | Ops lead | ⬜ Run the smoke test with `pingUrl` set to a test VM in each region |
-| 0.9 | Install Docker Desktop + kubectl on the dev machine (needed for Phase 1) | Head programmer | ⬜ |
+| Path | What | License |
+| :--- | :--- | :--- |
+| `hubs/` | Hubs client, imported as a git subtree of `Hubs-Foundation/hubs` | MPL-2.0 (`hubs/LICENSE`) |
+| `hubs/src/classroom/` | **Our classroom add-on** (Teacher HUD, Gather All, Lecture Mode…) | see below |
+| `UPSTREAM_PATCHES.md` | Every upstream Hubs file we modify | — |
+| `tools/smoke-test/` | Device and network check page (EN/FIL), published to GitHub Pages | see below |
+| `scripts/github-setup.sh` | One-time GitHub setup (Pages, labels, issues, project board) | — |
+| `.devcontainer/` | Codespaces: Node 22, Docker, kubectl/Helm | — |
+| `.github/workflows/classroom-build.yml` | Builds `ghcr.io/ben010618/classroom-hubs` on changes to `hubs/` | — |
 
-## Running the smoke test
+> **License for our own code:** not chosen yet (all rights reserved until we choose). Files we modify inside `hubs/` stay MPL-2.0.
+
+## Working with upstream Hubs
 
 ```bash
-cd tools/smoke-test
-python -m http.server 8765     # then open http://localhost:8765
+git remote add hubs-upstream https://github.com/Hubs-Foundation/hubs.git   # once
+git subtree pull --prefix hubs hubs-upstream master --squash               # monthly rebase window
 ```
 
-**Publishing changes to the live page:** the `gh-pages` branch is a copy of `tools/smoke-test/`. After committing to `main`, run:
+Keep changes to upstream files small and log each one in `UPSTREAM_PATCHES.md`. If that list passes about 25 files, raise the Gate 4 decision early.
+
+## Quick start
+
+```bash
+# Device check page
+cd tools/smoke-test && python -m http.server 8765        # http://localhost:8765
+
+# Hubs client (in Codespaces, or locally with Node 22)
+cd hubs && npm ci && npm run storybook                   # build UI in isolation on :6006
+```
+
+Publish device-check changes to Pages:
 
 ```bash
 git push origin `git subtree split --prefix tools/smoke-test main`:gh-pages --force
 ```
 
-The microphone check needs a secure origin: use `localhost` locally, or HTTPS once it's deployed. In Phase 1 we host it on our own server at `/check`, and set `iceServers` and `pingUrl` in `config.js` to our coturn and server.
+## Not in this repo (on purpose)
+
+- **Letters to the Schools Division Office.** They stay on the local PC (OneDrive), never in git.
+- **Secrets** (TURN credentials, SMTP, server keys). These go in the server or GitHub Secrets only.
+- **Learner data of any kind.**
