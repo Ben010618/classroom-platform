@@ -161,8 +161,8 @@
 <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/utils/BufferGeometryUtils.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/GLTFLoader.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/RGBELoader.js"></script>
-<script src="world.js"></script>
-<script src="avatar.js"></script>
+<script src="world.js?v=BUILD_ID"></script>
+<script src="avatar.js?v=BUILD_ID"></script>
 
 <script>
 "use strict";
@@ -170,6 +170,8 @@
 // WALKABLE PREVIEW (browser only)
 // ============================================================================================
 (async function preview() {
+  // Replaced with a build number by scripts/publish-pages.sh, so every release bypasses old cached files
+  const BUILD = "BUILD_ID";
   const view = document.getElementById("view");
   const err = document.getElementById("err");
   if (!window.THREE || !THREE.BufferGeometryUtils) {
@@ -246,11 +248,11 @@
     try {
       await Promise.all([
         ...TEX.map(async n => {
-          assets.tex[n] = { map: await loadTex(`assets/tex/${n}_diff.jpg`, true), normal: await loadTex(`assets/tex/${n}_nor.jpg`, false) };
+          assets.tex[n] = { map: await loadTex(`assets/tex/${n}_diff.jpg?v=${BUILD}`, true), normal: await loadTex(`assets/tex/${n}_nor.jpg?v=${BUILD}`, false) };
         }),
-        ...MODELS.map(n => new Promise((ok, fail) => gltf.load(`assets/models/${n}.glb`, g => { assets.models[n] = g.scene; tick(); ok(); }, undefined, fail))),
-        new Promise((ok, fail) => new THREE.RGBELoader().setDataType(THREE.UnsignedByteType).load("assets/sky.hdr", t => { assets.sky = t; tick(); ok(); }, undefined, fail)),
-        loadTex("assets/sky.jpg", true).then(t => { assets.skyBg = t; })
+        ...MODELS.map(n => new Promise((ok, fail) => gltf.load(`assets/models/${n}.glb?v=${BUILD}`, g => { assets.models[n] = g.scene; tick(); ok(); }, undefined, fail))),
+        new Promise((ok, fail) => new THREE.RGBELoader().setDataType(THREE.UnsignedByteType).load(`assets/sky.hdr?v=${BUILD}`, t => { assets.sky = t; tick(); ok(); }, undefined, fail)),
+        loadTex(`assets/sky.jpg?v=${BUILD}`, true).then(t => { assets.skyBg = t; })
       ]);
     } catch (e) {
       console.warn("Realistic assets failed to load; using simple graphics.", e);
@@ -610,4 +612,4 @@
   requestAnimationFrame(frame);
 })();
 </script>
-<script type="module" src="multiplayer.js"></script>
+<script type="module" src="multiplayer.js?v=BUILD_ID"></script>
