@@ -52,6 +52,35 @@
   #loading b { display: block; font-size: 18px; margin-bottom: 6px; }
   #loading span { color: var(--muted); }
   #err { position: fixed; inset: 0; display: grid; place-items: center; text-align: center; padding: 24px; }
+  /* multiplayer */
+  .primary { font: 700 13px var(--ui); color: #0f1512; background: var(--accent); border: 0; border-radius: 8px; padding: 8px 12px; cursor: pointer; }
+  .primary:focus-visible { outline: 2px solid #fff; outline-offset: 2px; }
+  #mp-open { pointer-events: auto; }
+  #mp-panel { position: fixed; inset: 0; z-index: 9; display: grid; place-items: center; background: rgba(8, 12, 10, 0.55); padding: 16px; }
+  .mp-card { background: #17201b; border: 1px solid var(--line); border-radius: 14px; width: min(720px, 100%); max-height: 100%; overflow: auto; display: grid; grid-template-columns: minmax(0, 1fr) 220px; gap: 16px; padding: 18px; }
+  .mp-card h2 { margin: 0 0 4px; font-size: 18px; }
+  .mp-card p { margin: 0; color: var(--muted); font-size: 13px; }
+  .mp-form { display: flex; flex-direction: column; gap: 10px; min-width: 0; }
+  .mp-form label { display: flex; flex-direction: column; gap: 4px; font-size: 12px; color: var(--muted); }
+  .mp-form input[type=text], .mp-form select { font: 14px var(--ui); color: var(--ink); background: #0f1512; border: 1px solid var(--line); border-radius: 8px; padding: 8px 10px; }
+  .mp-form .check { flex-direction: row; align-items: center; gap: 8px; color: var(--ink); font-size: 13px; }
+  .swatches { display: flex; gap: 6px; flex-wrap: wrap; }
+  .swatch { width: 28px; height: 28px; border-radius: 50%; border: 2px solid transparent; cursor: pointer; padding: 0; }
+  .swatch[aria-pressed="true"] { border-color: #fff; box-shadow: 0 0 0 2px var(--accent); }
+  #mp-preview { width: 100%; height: 300px; background: radial-gradient(circle at 50% 40%, #2a3a31, #121915); border-radius: 12px; display: block; }
+  .mp-actions { display: flex; gap: 8px; justify-content: flex-end; flex-wrap: wrap; }
+  #mp-bar { pointer-events: auto; display: flex; gap: 6px; align-items: center; flex-wrap: wrap; }
+  #mp-status { color: var(--muted); font-size: 12px; margin-right: 4px; }
+  #mp-teacher-panel { position: fixed; right: max(12px, env(safe-area-inset-right, 0px)); top: 120px; z-index: 6; width: 220px; display: flex; flex-direction: column; gap: 6px; }
+  #mp-teacher-panel h3 { margin: 0; font-size: 13px; }
+  #mp-teacher-panel ol { margin: 0; padding-left: 18px; font-size: 13px; }
+  #mp-teacher-panel .muted { color: var(--muted); list-style: none; margin-left: -18px; }
+  #mp-toast { position: fixed; left: 50%; bottom: 90px; transform: translateX(-50%); z-index: 7; }
+  @media (max-width: 640px) {
+    .mp-card { grid-template-columns: 1fr; }
+    #mp-preview { height: 200px; order: -1; }
+    #mp-teacher-panel { top: auto; bottom: 120px; width: 190px; }
+  }
   @media (max-width: 560px) { .help { display: none; } }
 </style>
 
@@ -63,6 +92,13 @@
   <div class="card title">
     <b>Bayanihan Demo School</b>
     <span>You are at: <span id="where">Main gate</span></span>
+    <div style="margin-top:6px"><button type="button" class="primary" id="mp-open">Join class (multiplayer)</button>
+      <div id="mp-bar" hidden><span id="mp-status">Connecting…</span>
+        <button type="button" class="toggle" id="mp-mic" aria-pressed="false">Mute</button>
+        <button type="button" class="toggle" id="mp-hand" aria-pressed="false">Raise hand</button>
+        <button type="button" class="toggle" id="mp-leave">Leave</button>
+      </div>
+    </div>
   </div>
   <div class="card go" role="group" aria-label="Go to">
     <button type="button" data-go="gate">Gate</button>
@@ -73,6 +109,7 @@
     <button type="button" data-go="stage">Stage</button>
     <button type="button" data-go="canteen">Canteen</button>
     <button type="button" data-go="library">Library</button>
+    <button type="button" data-go="garden">Garden</button>
     <button type="button" class="toggle" id="markers" aria-pressed="false">Hubs markers</button>
     <button type="button" class="toggle" id="quality" aria-pressed="false">Simple graphics</button>
   </div>
@@ -85,11 +122,47 @@
 
 <div class="stick" id="stick" hidden><i></i></div>
 
+<div id="mp-panel" hidden>
+  <div class="mp-card" role="dialog" aria-labelledby="mp-title">
+    <div class="mp-form">
+      <div><h2 id="mp-title">Join the class</h2><p>Everyone who uses the same class code meets in this school. Demo for up to about 8 people.</p></div>
+      <label>Your name <input type="text" id="mp-name" maxlength="24" placeholder="First name or nickname" autocomplete="off"></label>
+      <label>Class code <input type="text" id="mp-room" maxlength="40" autocomplete="off"></label>
+      <label>Skin tone <span class="swatches" id="mp-skin"></span></label>
+      <label>Hairstyle <select id="mp-hair"></select></label>
+      <label>Hair colour <span class="swatches" id="mp-haircolor"></span></label>
+      <label>Outfit <select id="mp-outfit"></select></label>
+      <label class="check"><input type="checkbox" id="mp-usemic" checked> Use my microphone</label>
+      <label class="check"><input type="checkbox" id="mp-teacher"> I'm the teacher</label>
+      <div class="mp-actions">
+        <button type="button" class="toggle" id="mp-close">Cancel</button>
+        <button type="button" class="primary" id="mp-join">Join</button>
+      </div>
+    </div>
+    <canvas id="mp-preview" aria-label="Preview of your avatar"></canvas>
+  </div>
+</div>
+
+<div id="mp-teacher-panel" class="card" hidden>
+  <h3>Teacher controls</h3>
+  <button type="button" class="toggle" id="mp-t-mute">Mute everyone</button>
+  <button type="button" class="toggle" id="mp-t-seats">Gather to seats</button>
+  <label class="check" style="font-size:12px;color:var(--muted)"><input type="checkbox" id="mp-t-lockafter" checked> Lock seats after gathering</label>
+  <button type="button" class="toggle" id="mp-t-front">Call to the front</button>
+  <button type="button" class="toggle" id="mp-t-unlock">Unlock seats</button>
+  <h3>Raised hands</h3>
+  <ol id="mp-hands"></ol>
+  <p style="margin:0;color:var(--muted);font-size:11px">Stand on the podium to be heard across the room.</p>
+</div>
+
+<div id="mp-toast" class="card" hidden></div>
+
 <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/utils/BufferGeometryUtils.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/GLTFLoader.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/RGBELoader.js"></script>
 <script src="world.js"></script>
+<script src="avatar.js"></script>
 
 <script>
 "use strict";
@@ -161,7 +234,7 @@
   });
   view.appendChild(renderer.domElement);
 
-  const { scene, colliders, places, markers, materials: M, props, signs } = buildWorld(THREE, { realFurniture: !simple });
+  const { scene, colliders, places, markers, materials: M, props, signs, trees } = buildWorld(THREE, { realFurniture: !simple });
   scene.background = new THREE.Color(0xa9d3ef);
   scene.fog = new THREE.Fog(0xa9d3ef, 60, 150);
 
@@ -187,7 +260,8 @@
     for (const n of ["grassDark", "path"]) if (M[n]) { M[n].map = assets.tex.concrete.map; M[n].needsUpdate = true; }
     // Pod tables: light wood. Tree crowns: grass texture as a leafy surface.
     M.pod.map = assets.tex.wood.map; M.pod.color.setHex(0xffe2b8).convertSRGBToLinear(); M.pod.needsUpdate = true;
-    for (const n of ["leaf", "leaf2"]) { M[n].map = assets.tex.grass.map; M[n].normalMap = assets.tex.grass.normal; M[n].needsUpdate = true; }
+    for (const n of ["leaf", "leaf2", "plant"]) { M[n].map = assets.tex.grass.map; M[n].normalMap = assets.tex.grass.normal; M[n].needsUpdate = true; }
+    M.soil.map = assets.tex.grass.map; M.soil.color.setHex(0x6b4a33).convertSRGBToLinear(); M.soil.needsUpdate = true;
     M.wall.envMapIntensity = 1.35;
     M.ceiling.color.setHex(0xffffff);
     M.ceiling.envMapIntensity = 1.2;
@@ -288,6 +362,19 @@
     { lines: ["Bayanihan Demo School"], x: 0, y: 4.0, z: 70.52, ry: Math.PI, w: 11.6, h: 0.6, bg: "#2f6b4f", fg: "#f3efe6" },
     { lines: ["Bayanihan Demo School"], x: 0, y: 4.0, z: 69.48, ry: 0, w: 11.6, h: 0.6, bg: "#2f6b4f", fg: "#f3efe6" }
   ]);
+  // Soft ground shadows under trees: one instanced draw call, no shadow maps (cheap on phones)
+  const shadowTex = window.Avatars.shadowTexture(THREE);
+  const blob = new THREE.InstancedMesh(
+    new THREE.PlaneGeometry(1, 1).rotateX(-Math.PI / 2),
+    new THREE.MeshBasicMaterial({ map: shadowTex, transparent: true, depthWrite: false, opacity: 0.55 }),
+    trees.length
+  );
+  const bm = new THREE.Object3D();
+  trees.forEach((t, i) => { bm.position.set(t.x + 0.6, 0.03, t.z + 0.4); bm.scale.set(t.r * 2, 1, t.r * 2); bm.updateMatrix(); blob.setMatrixAt(i, bm.matrix); });
+  blob.frustumCulled = false;
+  blob.renderOrder = 1;
+  scene.add(blob);
+
   for (const sg of allSigns) {
     const mesh = sg.flag ? flagPlane(sg.w, sg.h) : textPlane(sg.lines, sg.w, sg.h, sg.bg, sg.fg);
     mesh.position.set(sg.x, sg.y, sg.z);
@@ -361,9 +448,10 @@
   function area() {
     if (me.x > -30 && me.x < -16 && me.z > -26 && me.z < -6) return me.z < -21 ? "Podium" : "Classroom 1";
     if (me.x > 33 && me.x < 70 && me.z > -18 && me.z < 8) return "Covered court";
-    if (me.x > -58 && me.x < -40 && me.z > -6 && me.z < 12) return "Canteen";
+    if (me.x > -58 && me.x < -38 && me.z > -6 && me.z < 17) return "Canteen";
     if (me.x > -58 && me.x < -40 && me.z > -26 && me.z < -6) return "Library";
     if (me.x > 8 && me.x < 28 && me.z > 0 && me.z < 12) return "Stage";
+    if (me.x > -20 && me.x < 8 && me.z > -45 && me.z < -27) return "Vegetable garden";
     if (me.z > 60) return "Main gate";
     if (me.z > -3 && me.z < 24 && Math.abs(me.x) < 34) return "Flag plaza";
     if (me.z > -6 && me.z < -3) return "Veranda";
@@ -371,7 +459,7 @@
   }
 
   const keys = new Set();
-  addEventListener("keydown", e => { if (!(e.target.closest && e.target.closest("button"))) keys.add(e.code); });
+  addEventListener("keydown", e => { if (!(e.target.closest && e.target.closest("button, input, select, textarea"))) keys.add(e.code); });
   addEventListener("keyup", e => keys.delete(e.code));
   addEventListener("blur", () => keys.clear());
 
@@ -437,7 +525,7 @@
     if (keys.has("KeyE")) me.yaw -= 1.8 * dt;
     f -= moveVec.y; s += moveVec.x;
     const speed = (keys.has("ShiftLeft") || keys.has("ShiftRight") ? 6 : 3) * dt;
-    const len = Math.hypot(f, s);
+    const len = me.locked ? 0 : Math.hypot(f, s);
     if (len > 0.01) {
       const k = Math.min(1, len) / len;
       const fx = -Math.sin(me.yaw), fz = -Math.cos(me.yaw);
@@ -446,6 +534,7 @@
       [me.x, me.z] = collide(nx, nz);
     }
     if (window.__spinFans) window.__spinFans(dt);
+    if (window.__world && window.__world.onTick) window.__world.onTick(dt);
     camera.position.set(me.x, EYE, me.z);
     camera.rotation.set(me.pitch, me.yaw, 0, "YXZ");
     renderer.render(scene, camera);
@@ -459,7 +548,17 @@
     }
     requestAnimationFrame(frame);
   }
+  // Hooks for multiplayer.js
+  const byName = n => markers.children.find(m => m.name === n);
+  const seats = markers.children.filter(m => /^seat-\d+$/.test(m.name)).sort((a, b) => a.name.localeCompare(b.name, "en", { numeric: true }))
+    .map(m => ({ x: m.position.x, z: m.position.z, yaw: m.rotation.y }));
+  const pods = markers.children.filter(m => /^pod-[a-d]$/.test(m.name)).map(m => ({ x: m.position.x, z: m.position.z, w: m.scale.x, d: m.scale.z }));
+  places.podiumFront = { x: places.podium.x, z: -21.9, yaw: 0 };
+  window.__world = { THREE, scene, camera, renderer, me, places, go, seats, pods, byName, onTick: null };
+  window.dispatchEvent(new Event("world-ready"));
+
   go("gate");
   requestAnimationFrame(frame);
 })();
 </script>
+<script type="module" src="multiplayer.js"></script>

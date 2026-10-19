@@ -18,6 +18,25 @@ One world definition ([`world.js`](world.js)) produces two things:
 | **Walkable preview** | [`index.html`](index.html): first-person walk in any browser (keyboard, mouse or touch), with "Go to" buttons and a toggle showing the Hubs markers | `npm run preview`, then open http://localhost:8766 |
 | **Hubs scene** | `assets/scenes/bayanihan-school.glb`: Draco-compressed, with `MOZ_hubs_components` | `npm ci && npm run export` |
 
+## Multiplayer demo (Join class)
+
+Press **Join class (multiplayer)**. Everyone who enters the **same class code** meets in the same school.
+
+- **Appearance editor:** skin tone (5), hairstyle (short, long, ponytail, bun, buzz cut), hair colour (5) and outfit (polo or blouse school uniform, PE shirt, casual, teacher), with a live 3D preview. It's remembered on the device.
+- **Avatars:** name tags, a raised arm when the hand is up, and sitting down when seated. The mouth moves while talking.
+- **Voice:** spatial, so people get louder as you walk closer. Pods are cut off from each other, and a teacher standing on the podium is heard everywhere.
+- **Teacher** (tick "I'm the teacher"): Mute everyone, Gather to seats (optionally locked), Call to the front, Unlock seats, and the raised-hands list.
+
+How it works: [`multiplayer.js`](multiplayer.js) uses **[Trystero](https://github.com/dmotz/trystero) 0.25.4**. Browsers connect **directly to each other** (WebRTC), and public Nostr relays are used only to find each other. There is no server of ours.
+
+**Limits — this is a demo, not the classroom platform:**
+- About **8 people** at most. Every browser sends its voice to every other browser.
+- Roles are self-declared. Anyone can tick "I'm the teacher", and nothing is enforced on a server.
+- Peers see each other's IP addresses, and public relays carry the connection setup. **Don't use it for real classes with minors.**
+- Some mobile networks block direct connections (there's no relay server). On those, voice or the connection itself can fail.
+
+The real classroom (35 learners, server-enforced permissions, no third parties) is the Hubs deployment ([`deploy/README.md`](../../deploy/README.md)), which loads this same school as its scene.
+
 ## Realistic mode (default) and Simple graphics
 
 The preview loads real, **CC0** assets from [Poly Haven](https://polyhaven.com) (credits: [`assets/CREDITS.md`](assets/CREDITS.md)):
@@ -42,8 +61,13 @@ The Hubs scene export still uses the simple box furniture. Putting the real mode
 | Main gate | Gate arch, perimeter fence, 4 spawn points |
 | Flag plaza | Raised platform, flagpole (plain flag), 3 benches |
 | School building | 4 classrooms on a covered veranda (rooms 2–4 closed) |
-| **Classroom 1** | Terrazzo floor, chalkboard + slide screen, lectern, teacher's desk, book shelves, 12 fluorescent tube lights, 4 ceiling fans, **35 desks with chairs (5 × 7)**, **4 breakout pods** with 5 stools each |
+| **Classroom 1** | Terrazzo floor, bulletin boards, wall clock, chalkboard + slide screen, lectern, teacher's desk, book shelves, 12 fluorescent tube lights, 4 ceiling fans, **35 desks with chairs (5 × 7)**, **4 breakout pods** with 5 stools each |
 | Covered court | Court with lines and two hoops under a roof |
+| Stage | Covered stage at the plaza for programmes, with steps and a backdrop |
+| Canteen | Serving counter, tables, waste bins, handwashing station |
+| Library | Book shelves, reading table |
+| Vegetable garden | *Gulayan sa Paaralan*: 6 raised beds with rows of plants |
+| Campus details | Jalousie windows, potted plants on the veranda, colour-coded bins, handwashing stations, a Philippine flag, soft shadows under trees and people |
 | Grounds | ~50 shade trees, walkway, lawn |
 
 **Hubs scene budget:** 26,526 triangles · 22 draw calls · 0.71 MB (targets: 80k · 80 · 8 MB).

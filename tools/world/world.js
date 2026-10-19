@@ -9,6 +9,7 @@
 (typeof window !== "undefined" ? window : globalThis).buildWorld = function buildWorld(THREE, opts = {}) {
   const realFurniture = !!opts.realFurniture;
   const props = []; // { kind, x, y, z, ry }
+  const trees = []; // { x, z, r } for soft ground shadows in the preview
   const signs = []; // { lines | flag, x, y, z, ry, w, h, bg, fg } — painted as panels by the preview
   const scene = new THREE.Scene();
   scene.name = "BayanihanDemoSchool";
@@ -49,6 +50,12 @@
   mat("paperC", 0xf2a7a0);
   mat("clockFace", 0xf7f5ef);
   mat("dark", 0x26292b);
+  mat("pot", 0xb5603b);            // terracotta plant pots
+  mat("soil", 0x5a3d2b);
+  mat("plant", 0x4f9a3a);
+  mat("binGreen", 0x2e8b57);       // biodegradable
+  mat("binBlue", 0x2f6fb3);        // recyclable
+  mat("binRed", 0xc0392b);         // residual
 
   // Texture tiling (metres per texture repeat) for surfaces that get real textures in the preview.
   const TILE = { leaf: 2, leaf2: 2, floor: 1.2, wall: 2.4, ceiling: 2.4, roof: 2.5, concrete: 3, path: 3, grass: 5, grassDark: 5, court: 4, wood: 1.2, podium: 1.2, pod: 1.2 };
@@ -392,14 +399,66 @@
     // Crown: a cluster of 4 smooth blobs (reads as a mango/acacia canopy, still ~320 triangles)
     const blobs = [[0, 0.9, 0, 1], [0.75, 0.55, 0.3, 0.72], [-0.65, 0.6, -0.35, 0.75], [0.1, 1.45, -0.5, 0.65]];
     blobs.forEach(([bx, by, bz, br], k) => {
-      const g = new THREE.IcosahedronGeometry(r * br, 1);
+      const g = new THREE.IcosahedronGeometry(r * br, i < 46 ? 0 : 1);   // perimeter trees are always far away: lighter crowns
       g.scale(1, 0.78, 1);
       const a = i * 1.7;
       const rx = (bx * Math.cos(a) - bz * Math.sin(a)) * r, rz = (bx * Math.sin(a) + bz * Math.cos(a)) * r;
       put((i + k) % 3 === 0 ? "leaf2" : "leaf", g, x + rx, h + by * r * 0.8, z + rz, i + k);
     });
     colliders.push([x - 0.35, z - 0.35, x + 0.35, z + 0.35]);
+    trees.push({ x, z, r: r * 1.5 });
   });
+
+  // ============================== CAMPUS DETAILS ==============================
+  // Potted plants between the veranda posts
+  for (let x = B.x0 + 3.5; x <= B.x1 - 3.5; x += 5) {
+    if (Math.abs(x - -18.2) < 1.5) continue;                     // keep Room 1's door clear
+    cyl("pot", x, 0.08, -3.3, 0.22, 0.42, 10, 0.28);
+    put("plant", new THREE.IcosahedronGeometry(0.42, 0), x, 0.85, -3.3, x);
+    put("plant", new THREE.IcosahedronGeometry(0.3, 0), x + 0.18, 1.12, -3.25, x + 1);
+  }
+  // Colour-coded waste bins: biodegradable, recyclable, residual
+  function bins(x, z, ry) {
+    ["binGreen", "binBlue", "binRed"].forEach((m, k) => {
+      const dx = (k - 1) * 0.62;
+      const bx = x + Math.cos(ry) * dx, bz = z - Math.sin(ry) * dx;
+      cyl(m, bx, 0, bz, 0.26, 0.85, 10, 0.29);
+      cyl("dark", bx, 0.85, bz, 0.3, 0.05, 10);
+    });
+    colliders.push([x - 0.95, z - 0.35, x + 0.95, z + 0.35]);
+  }
+  bins(-11.5, -1.8, 0);
+  bins(8.5, -1.8, 0);
+  bins(-40.5, 6.6, 0);
+  // Handwashing stations: long basin with taps, near the classrooms and the canteen
+  function washStation(x, z) {
+    box("concrete", x, 0, z, 3, 0.8, 0.7, 0, true);
+    box("wall", x, 0.8, z, 3, 0.12, 0.7);
+    box("dark", x, 0.84, z, 2.7, 0.06, 0.5);
+    box("metal", x, 0.92, z + 0.3, 3, 0.05, 0.05);
+    for (let k = -1; k <= 1; k++) box("metal", x + k * 0.9, 0.92, z + 0.2, 0.04, 0.16, 0.04);
+  }
+  washStation(-10, 13.5);
+  washStation(-53.5, 7.6);
+  // Gulayan sa Paaralan: school vegetable garden behind the main building
+  const G = { x: -6, z: -38 };
+  for (let bi = 0; bi < 6; bi++) {
+    const bx = G.x - 7.5 + (bi % 3) * 7.5, bz = G.z - 2.6 + Math.floor(bi / 3) * 5.2;
+    box("wood", bx, 0, bz, 5.6, 0.32, 2.2, 0, true);           // raised bed frame
+    box("soil", bx, 0.3, bz, 5.3, 0.05, 1.9);
+    for (let row = 0; row < 3; row++) {
+      for (let k = 0; k < 7; k++) {
+        const px = bx - 2.3 + k * 0.76, pz = bz - 0.6 + row * 0.6;
+        const g = bi % 2 ? new THREE.ConeGeometry(0.16, 0.42, 5) : new THREE.IcosahedronGeometry(0.17, 0);
+        put("plant", g, px, 0.52 + (bi % 2 ? 0 : -0.05), pz, k + row);
+      }
+    }
+  }
+  box("path", G.x, 0, G.z, 24, 0.03, 1.4);
+  box("path", G.x, 0, -31, 3, 0.03, 8);
+  signs.push({ lines: ["GULAYAN SA PAARALAN", "School Vegetable Garden"], x: G.x, y: 1.3, z: G.z + 6, ry: 0, w: 4.2, h: 0.8, bg: "#2f6b4f", fg: "#f3efe6" });
+  box("metal", G.x - 1.9, 0, G.z + 5.96, 0.08, 1.7, 0.08);
+  box("metal", G.x + 1.9, 0, G.z + 5.96, 0.08, 1.7, 0.08);
 
   // ============================== SPAWN + GO-TO POINTS ==============================
   [[-3, 64], [-1, 64], [1, 64], [3, 64]].forEach(([x, z], i) => marker("spawn-0" + (i + 1), x, 0, z, 0, spawnWaypoint));
@@ -444,7 +503,8 @@
     court: { x: C.x - 17.5, z: C.z + 3, yaw: -Math.PI / 2 + 0.12, label: "Covered court" },
     stage: { x: 12, z: 6, yaw: -Math.PI / 2, label: "Stage" },
     canteen: { x: -46, z: 14, yaw: 0.25, label: "Canteen" },
-    library: { x: -45, z: -6.5, yaw: 0.3, label: "Library" }
+    library: { x: -45, z: -6.5, yaw: 0.3, label: "Library" },
+    garden: { x: -6, z: -28.5, yaw: 0, label: "Vegetable garden" }
   };
-  return { scene, colliders, places, markers, materials: M, props, signs };
+  return { scene, colliders, places, markers, materials: M, props, signs, trees };
 };
