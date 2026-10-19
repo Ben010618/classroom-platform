@@ -5,13 +5,19 @@
   "description": "Bayanihan Demo School: walkable preview (index.html) and Hubs scene export (export.mjs) from one world definition (world.js).",
   "scripts": {
     "export": "node export.mjs",
-    "preview": "python -m http.server 8766"
+    "preview": "python -m http.server 8766",
+    "assets": "node fetch-assets.mjs"
   },
   "dependencies": {
-    "three": "0.128.0",
     "@gltf-transform/core": "4.5.1",
     "@gltf-transform/extensions": "4.5.1",
     "@gltf-transform/functions": "4.5.1",
-    "draco3dgltf": "1.5.9"
+    "draco3dgltf": "1.5.9",
+    "meshoptimizer": "1.3.0",
+    "sharp": "0.33.5",
+    "three": "0.128.0"
+  },
+  "overrides": {
+    "sharp": "0.33.5"
   }
 }

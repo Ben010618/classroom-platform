@@ -18,6 +18,23 @@ One world definition ([`world.js`](world.js)) produces two things:
 | **Walkable preview** | [`index.html`](index.html): first-person walk in any browser (keyboard, mouse or touch), with "Go to" buttons and a toggle showing the Hubs markers | `npm run preview`, then open http://localhost:8766 |
 | **Hubs scene** | `assets/scenes/bayanihan-school.glb`: Draco-compressed, with `MOZ_hubs_components` | `npm ci && npm run export` |
 
+## Realistic mode (default) and Simple graphics
+
+The preview loads real, **CC0** assets from [Poly Haven](https://polyhaven.com) (credits: [`assets/CREDITS.md`](assets/CREDITS.md)):
+
+| What | Asset | After reduction |
+| :--- | :--- | :--- |
+| Learner desks + chairs (35 each, GPU-instanced) | *School Desk 01*, *School Chair 01* | 580 + 506 triangles each (from 4,162 + 5,072) |
+| Teacher's desk, book shelves, 4 ceiling fans (spinning) | *Metal Office Desk*, *Shelf 01*, *Ceiling Fan* | 3.4k / 0.2k / 1.6k triangles |
+| Floor, walls, roof, plaza, lawn, court, wood | *terrazzo_tiles*, *painted_plaster_wall*, *corrugated_iron*, *concrete_floor_02*, *leafy_grass*, *asphalt_floor*, *wood_table* | 512 px colour + normal maps |
+| Sky and lighting | *Kloofendal 48d Partly Cloudy (Pure Sky)* | 1K HDR for lighting, 2K JPG for the visible sky |
+
+Total download about **3.1 MB**. The full view is about 70k triangles and 26–41 draw calls (targets 80k / 80).
+**Simple graphics** (top-right button, remembered per device) skips all of it for very old phones. The page also falls back to it automatically if an asset fails to load.
+Refresh the assets with `npm run assets` (`fetch-assets.mjs` downloads, shrinks to 512 px, simplifies the models and writes the credits).
+
+The Hubs scene export still uses the simple box furniture. Putting the real models in the Hubs file needs a check that Hubs loads GPU-instanced meshes (`EXT_mesh_gpu_instancing`) — Gate 2.
+
 ## The world
 
 | Place | Contents |
@@ -25,11 +42,11 @@ One world definition ([`world.js`](world.js)) produces two things:
 | Main gate | Gate arch, perimeter fence, 4 spawn points |
 | Flag plaza | Raised platform, flagpole (plain flag), 3 benches |
 | School building | 4 classrooms on a covered veranda (rooms 2–4 closed) |
-| **Classroom 1** | Chalkboard + slide screen, lectern, teacher's table, **35 desks with chairs (5 × 7)**, **4 breakout pods** with 5 stools each |
+| **Classroom 1** | Terrazzo floor, chalkboard + slide screen, lectern, teacher's desk, book shelves, 12 fluorescent tube lights, 4 ceiling fans, **35 desks with chairs (5 × 7)**, **4 breakout pods** with 5 stools each |
 | Covered court | Court with lines and two hoops under a roof |
-| Grounds | ~50 low-poly trees, walkway, grass |
+| Grounds | ~50 shade trees, walkway, lawn |
 
-**Budget:** 12,166 triangles · 22 draw calls · 0.34 MB (targets: 80k · 80 · 8 MB). The Khronos glTF validator reports 0 errors and 0 warnings.
+**Hubs scene budget:** 26,526 triangles · 22 draw calls · 0.71 MB (targets: 80k · 80 · 8 MB).
 
 ## Hubs markers written into the scene
 
