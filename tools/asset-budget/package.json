@@ -1,0 +1,21 @@
+{
+  "name": "asset-budget",
+  "private": true,
+  "type": "module",
+  "description": "Enforces the classroom 3D asset budget (BLUEPRINT §4) on .glb files.",
+  "bin": { "asset-budget": "check.mjs" },
+  "scripts": {
+    "check": "node check.mjs",
+    "optimize": "gltf-transform optimize",
+    "test": "node --test"
+  },
+  "dependencies": {
+    "@gltf-transform/core": "4.5.1",
+    "@gltf-transform/extensions": "4.5.1",
+    "draco3dgltf": "1.5.9",
+    "meshoptimizer": "1.3.0"
+  },
+  "devDependencies": {
+    "@gltf-transform/cli": "4.5.1"
+  }
+}

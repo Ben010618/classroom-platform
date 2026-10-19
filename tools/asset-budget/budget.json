@@ -1,0 +1,7 @@
+{
+  "_comment": "BLUEPRINT §4. 'target' fails nothing (warns); 'cap' fails the check. Sizes in MB.",
+  "fileSizeMB": { "target": 8, "cap": 15 },
+  "triangles": { "target": 80000, "cap": 150000 },
+  "drawCalls": { "target": 80, "cap": 120 },
+  "textureMaxSize": { "target": 1024, "cap": 2048 }
+}
