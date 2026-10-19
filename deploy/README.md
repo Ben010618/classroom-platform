@@ -14,6 +14,17 @@ Secrets live only in `deploy/.env` and `deploy/work/`, which are git-ignored. **
 
 ---
 
+## Free option (experimental): Oracle Cloud Always Free + sslip.io
+
+If there's no budget yet, you can **test** on Oracle Cloud's Always Free tier:
+- **Domain:** sslip.io gives every IP a free name, and any prefix works (`assets.<ip-with-dashes>.sslip.io` etc.), so you get all four required names with no DNS setup.
+- **Caveats** (checked 19 Oct 2026):
+  - Oracle has reportedly **cut** the free Ampere A1 allowance from 4 CPU / 24 GB to **2 CPU / 12 GB**. Sources disagree on the date and on enforcement ([InfoQ](https://infoq.com/news/2026/07/oracle-cloud-free-tier-limits/), [TerminalBytes](https://terminalbytes.com/oracle-cloud-free-tier-changes-2026)). Check Oracle's own Always Free page before relying on it.
+  - It's an **ARM** machine. Every CE image (reticulum, dialog, coturn, haproxy, spoke…) must have an `arm64` build. **Unverified.**
+  - 2 CPUs is tight for the media server, which is fine for a 5–8 person test but not for a class.
+  - Signing up needs a card for identity verification.
+- Use it to rehearse this runbook. **Use the paid server below for the pilot.**
+
 ## 1. Create the server
 
 - **Hetzner Cloud → Singapore (sin) → CCX33**: 8 dedicated vCPU, 32 GB RAM, 240 GB disk, Ubuntu 24.04, your SSH key.
