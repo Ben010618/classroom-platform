@@ -25,6 +25,7 @@ export function RoomEntryModal({
   onSpectate,
   showRoomSettings,
   onRoomSettings,
+  children, // classroom: UPSTREAM_PATCHES #4
   ...rest
 }) {
   const breakpoint = useCssBreakpoints();
@@ -38,6 +39,7 @@ export function RoomEntryModal({
           </h5>
           <p>{roomName}</p>
         </div>
+        {children /* classroom: UPSTREAM_PATCHES #4 — pre-join card */}
         <Column center className={styles.buttons}>
           {showJoinRoom && (
             <Button preset="accent4" onClick={onJoinRoom}>
@@ -90,7 +92,8 @@ RoomEntryModal.propTypes = {
   showSpectate: PropTypes.bool,
   onSpectate: PropTypes.func,
   showRoomSettings: PropTypes.bool,
-  onRoomSettings: PropTypes.func
+  onRoomSettings: PropTypes.func,
+  children: PropTypes.node // classroom: UPSTREAM_PATCHES #4
 };
 
 RoomEntryModal.defaultProps = {

@@ -73,6 +73,6 @@ and publishes it as `ghcr.io/ben010618/classroom-hubs:latest` (also tagged with 
 ## Status
 
 - ✅ Teacher Controls panel, Gather All, Seat Lock, Lecture Mode, hand-raise queue (#14–#17). **Not yet tested in a live room;** that needs the Phase 1 server.
-- 🟡 Filipino locale: registered, with classroom strings translated. The full UI translation is still to do (#19).
-- ⬜ Pre-join card: Lite mode, mic check, privacy/screenshot rule (#18)
+- ✅ Filipino locale: all learner-facing UI (#19). Admin and debug screens fall back to English.
+- ✅ Pre-join card: Lite mode + class rules (#18). The mic check already exists in Hubs (MicSetupModal).
 - ⬜ PPT → PDF conversion (server sidecar, #20)

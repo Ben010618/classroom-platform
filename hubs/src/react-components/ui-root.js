@@ -73,6 +73,7 @@ import { ReactComponent as InviteIcon } from "./icons/Invite.svg";
 import hubsLogo from "../assets/images/hubs-logo.png";
 import { PeopleSidebarContainer, userFromPresence } from "./room/PeopleSidebarContainer";
 import { TeacherHudSidebarContainer } from "./classroom/TeacherHudSidebarContainer"; // classroom: UPSTREAM_PATCHES #2
+import { ClassroomPreJoinContainer } from "./classroom/ClassroomPreJoinContainer"; // classroom: UPSTREAM_PATCHES #4
 import { ObjectListProvider } from "./room/hooks/useObjectList";
 import { ObjectsSidebarContainer } from "./room/ObjectsSidebarContainer";
 import { ObjectMenuContainer } from "./room/ObjectMenuContainer";
@@ -872,7 +873,10 @@ class UIRoot extends Component {
               SignInMessages.roomSettings
             );
           }}
-        />
+        >
+          {/* classroom: UPSTREAM_PATCHES #4 */}
+          <ClassroomPreJoinContainer store={this.props.store} />
+        </RoomEntryModal>
         {!this.state.waitingOnAudio && (
           <EntryStartPanel
             hubChannel={this.props.hubChannel}

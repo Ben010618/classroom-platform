@@ -1,0 +1,38 @@
+@use "../styles/theme.scss";
+
+:local(.pre-join) {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  width: 100%;
+  max-width: 320px;
+  margin: 8px 0 16px;
+  text-align: left;
+}
+
+:local(.rules) {
+  border: 1px solid theme.$border1-color;
+  border-radius: 8px;
+  padding: 8px 12px;
+  font-size: theme.$font-size-xs;
+  color: theme.$text1-color;
+
+  ul {
+    list-style: disc;
+    margin: 4px 0 0;
+    padding-left: 18px;
+  }
+
+  li {
+    display: list-item;
+    margin: 4px 0;
+    line-height: 1.35;
+  }
+}
+
+:local(.heading) {
+  margin: 0;
+  font-size: theme.$font-size-sm;
+  font-weight: theme.$font-weight-bold;
+  color: theme.$text1-color;
+}
