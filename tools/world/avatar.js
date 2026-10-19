@@ -165,6 +165,6 @@
     return root;
   }
 
-  const api = { buildAvatar, shadowTexture, SKIN, HAIR_COLOR, OUTFITS, HAIR_STYLES, DEFAULT_LOOK };
+  const api = { buildAvatar, nameTag, shadowTexture, SKIN, HAIR_COLOR, OUTFITS, HAIR_STYLES, DEFAULT_LOOK };
   (typeof window !== "undefined" ? window : globalThis).Avatars = api;
 })();
