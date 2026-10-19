@@ -2,7 +2,7 @@
 
 **Walk it now:** https://ben010618.github.io/classroom-platform/world/ (GitHub Pages, works on any phone or laptop browser, no install)
 
-**Run it from your own PC (offline copy):** download `index.html` and `world.js` into one folder and double-click `index.html`. The browser needs internet once to load the three.js library from the CDN.
+**Run it from your own PC (offline copy):** download `index.html` and `world.js` into one folder and double-click `index.html`. It needs an internet connection to load the three.js library from the CDN (cached after the first visit).
 
 **Publish changes to the public page** (the `gh-pages` branch serves the device check at `/` and the world at `/world/`):
 ```bash
