@@ -9,6 +9,7 @@
 (typeof window !== "undefined" ? window : globalThis).buildWorld = function buildWorld(THREE, opts = {}) {
   const realFurniture = !!opts.realFurniture;
   const props = []; // { kind, x, y, z, ry }
+  const signs = []; // { lines | flag, x, y, z, ry, w, h, bg, fg } — painted as panels by the preview
   const scene = new THREE.Scene();
   scene.name = "BayanihanDemoSchool";
   const colliders = []; // axis-aligned XZ rectangles the walker can't enter: [x0, z0, x1, z1]
@@ -42,6 +43,12 @@
   mat("pod", 0xd9a35a);           // breakout pod tables
   mat("marker", 0xffffff, { roughness: 1 });
   mat("lamp", 0xffffff, { emissive: 0xffffff, emissiveIntensity: 1.4, roughness: 0.5 });   // fluorescent tubes
+  mat("cork", 0xb98b5a);           // bulletin boards
+  mat("paperA", 0xf6e27a);
+  mat("paperB", 0x9fd3f0);
+  mat("paperC", 0xf2a7a0);
+  mat("clockFace", 0xf7f5ef);
+  mat("dark", 0x26292b);
 
   // Texture tiling (metres per texture repeat) for surfaces that get real textures in the preview.
   const TILE = { leaf: 2, leaf2: 2, floor: 1.2, wall: 2.4, ceiling: 2.4, roof: 2.5, concrete: 3, path: 3, grass: 5, grassDark: 5, court: 4, wood: 1.2, podium: 1.2, pod: 1.2 };
@@ -186,11 +193,26 @@
   wallZ("wall", B.x1, B.z0, B.z1, B.h, B.t);
   for (let r = 1; r < 4; r++) wallZ("wall", rooms[r], B.z0, B.z1, B.h, B.t);
   // glass in all window openings (thin, set back into the wall)
-  const glassX = (z, ops) => ops.filter(o => o.y0 > 0).forEach(o => box("glass", (o.a + o.b) / 2, o.y0, z, o.b - o.a, o.y1 - o.y0, 0.05));
+  // Jalousie windows: tilted glass louvres in a metal frame (the standard Philippine school window)
+  function jalousie(cxw, y0, y1, czw, width, alongZ) {
+    const n = Math.round((y1 - y0) / 0.11);
+    for (let k = 0; k < n; k++) {
+      const y = y0 + 0.04 + k * ((y1 - y0 - 0.08) / (n - 1));
+      if (alongZ) put("glass", new THREE.BoxGeometry(0.008, 0.1, width - 0.1), cxw, y, czw, 0, 0, 0.5);
+      else put("glass", new THREE.BoxGeometry(width - 0.1, 0.1, 0.008), cxw, y, czw, 0, 0.5, 0);
+    }
+    const mullions = Math.max(1, Math.round(width / 1.0));
+    for (let k = 0; k <= mullions; k++) {
+      const t = -width / 2 + (k * width) / mullions;
+      if (alongZ) box("metal", cxw, y0, czw + t, 0.04, y1 - y0, 0.04);
+      else box("metal", cxw + t, y0, czw, 0.04, y1 - y0, 0.04);
+    }
+  }
+  const glassX = (z, ops) => ops.filter(o => o.y0 > 0).forEach(o => jalousie((o.a + o.b) / 2, o.y0, o.y1, z, o.b - o.a, false));
   glassX(B.z0, backOps);
   glassX(B.z1, frontOps);
-  box("glass", B.x0, 1.0, -20.5, 0.05, 1.3, 5);
-  box("glass", B.x0, 1.0, -12.5, 0.05, 1.3, 5);
+  jalousie(B.x0, 1.0, 2.3, -20.5, 5, true);
+  jalousie(B.x0, 1.0, 2.3, -12.5, 5, true);
   // ceiling inside the rooms (the roof slab sits on top)
   box("ceiling", (B.x0 + B.x1) / 2, B.h - 0.06, (B.z0 + B.z1) / 2, B.x1 - B.x0, 0.05, B.z1 - B.z0);
   // roof: slab with green fascia, overhanging the veranda
@@ -256,6 +278,24 @@
     zone.scale.set(3.4, 3, 2.6);   // the zone is a unit box scaled to the pod area
     marker(name + "-spot", x, 0, z + 1.4, 0, gotoWaypoint);
   }
+  // Bulletin boards on the east partition wall, with pinned papers
+  for (const bz of [-20.5, -13.5]) {
+    box("cork", -16.17, 1.0, bz, 0.04, 1.2, 3.2);
+    box("trim", -16.15, 0.96, bz, 0.05, 0.04, 3.3);
+    box("trim", -16.15, 2.2, bz, 0.05, 0.04, 3.3);
+    [["paperA", -1.1, 1.55], ["paperB", -0.2, 1.7], ["paperC", 0.8, 1.45], ["paperB", 1.2, 1.85], ["paperA", 0.1, 1.25], ["paperC", -1.0, 1.95]]
+      .forEach(([m, dz, y]) => box(m, -16.2, y - 0.16, bz + dz, 0.02, 0.32, 0.5));
+  }
+  signs.push({ lines: ["Class Announcements"], x: -16.21, y: 2.32, z: -20.5, ry: -Math.PI / 2, w: 2.4, h: 0.22, bg: "#2f6b4f", fg: "#f3efe6" });
+  signs.push({ lines: ["Our Best Work"], x: -16.21, y: 2.32, z: -13.5, ry: -Math.PI / 2, w: 2.4, h: 0.22, bg: "#2f6b4f", fg: "#f3efe6" });
+  // Wall clock above the board
+  put("clockFace", new THREE.CylinderGeometry(0.22, 0.22, 0.03, 20), cx, 2.95, B.z0 + 0.16, 0, Math.PI / 2, 0);
+  put("dark", new THREE.CylinderGeometry(0.235, 0.235, 0.025, 20), cx, 2.95, B.z0 + 0.14, 0, Math.PI / 2, 0);
+  box("dark", cx, 2.95, B.z0 + 0.185, 0.02, 0.15, 0.01);
+  put("dark", new THREE.BoxGeometry(0.015, 0.11, 0.01), cx + 0.04, 2.98, B.z0 + 0.19, 0, 0, -1.0);
+  signs.push({ lines: ["Welcome, Class!", "Maligayang pagdating!"], x: cx, y: 1.7, z: B.z0 + 0.22, ry: 0, w: 5.6, h: 1.4, bg: "#2b5a40", fg: "#e9efe6" });
+  signs.push({ lines: ["Room 1"], x: -18.2, y: 2.45, z: B.z1 + 0.15, ry: 0, w: 1.4, h: 0.35, bg: "#2f6b4f", fg: "#f3efe6" });
+  signs.push({ lines: ["BAYANIHAN DEMO SCHOOL", "Paaralang Bayanihan"], x: -2, y: 2.83, z: -2.42, ry: 0, w: 13.6, h: 0.76, bg: "#2f6b4f", fg: "#f3efe6" });
   // Fluorescent tube lights: 3 rows × 4, the long fixtures every public-school classroom has
   for (const lx of [-27, -23, -19]) {
     for (const lz of [-22, -17.5, -13, -8.5]) {
@@ -272,7 +312,49 @@
   // ============================== FLAG PLAZA ==============================
   box("concrete", 0, 0, 10, 8, 0.25, 8);                                // raised flag platform
   cyl("metal", 0, 0.25, 10, 0.07, 9, 8, 0.05);                           // flagpole
-  box("flag", 0.75, 7.8, 10, 1.5, 0.9, 0.03);                            // flag (plain, no national emblem)
+  box("flag", 0.75, 7.8, 10, 1.5, 0.9, 0.03);                            // flag (the preview paints the Philippine flag on it)
+  signs.push({ flag: "ph", x: 0.75, y: 8.25, z: 10.02, ry: 0, w: 1.5, h: 0.75 });
+  signs.push({ flag: "ph", x: 0.75, y: 8.25, z: 9.98, ry: Math.PI, w: 1.5, h: 0.75 });
+
+  // ============================== STAGE (programmes, speeches) ==============================
+  const S = { x: 24, z: 6 };
+  box("concrete", S.x, 0, S.z, 5.5, 1.0, 9, 0, true);                   // raised stage, facing west toward the plaza
+  for (let k = 0; k < 3; k++) box("concrete", S.x - 3.05 - k * 0.3, 0, S.z, 0.3, 0.75 - k * 0.25, 2.4);
+  box("wall", S.x + 2.6, 1.0, S.z, 0.3, 3.2, 9);                         // backdrop wall
+  box("trim", S.x + 2.4, 1.0, S.z, 0.06, 3.0, 8.6);                      // backdrop panel
+  for (const pz of [S.z - 4.4, S.z + 4.4]) box("metal", S.x - 2.6, 1.0, pz, 0.2, 3.4, 0.2);
+  box("roof", S.x, 4.4, S.z, 6.2, 0.18, 10);
+  signs.push({ lines: ["Bayanihan Stage", "Entablado"], x: S.x + 2.36, y: 3.2, z: S.z, ry: -Math.PI / 2, w: 5, h: 0.9, bg: "#2f6b4f", fg: "#f3efe6" });
+
+  // ============================== CANTEEN + LIBRARY (west side) ==============================
+  function smallBuilding(x0, z0, w, d, name, sub) {
+    const h = 3.4, x1 = x0 + w, z1 = z0 + d;
+    box("concrete", (x0 + x1) / 2, 0, (z0 + z1) / 2, w + 2, 0.08, d + 2);
+    wallX("wall", z0, x0, x1, h, 0.25, [win(x0 + 1.5, x0 + 4), win(x1 - 4, x1 - 1.5)]);
+    wallX("wall", z1, x0, x1, h, 0.25, [door(x0 + w / 2 - 0.9, x0 + w / 2 + 0.9), win(x0 + 1, x0 + w / 2 - 1.6), win(x0 + w / 2 + 1.6, x1 - 1)]);
+    wallZ("wall", x0, z0, z1, h, 0.25, [win(z0 + 1.5, z1 - 1.5)]);
+    wallZ("wall", x1, z0, z1, h, 0.25, [win(z0 + 1.5, z1 - 1.5)]);
+    jalousie(x0 + 2.75, 1.0, 2.3, z0, 2.5, false);
+    jalousie(x1 - 2.75, 1.0, 2.3, z0, 2.5, false);
+    jalousie((x0 + 1 + x0 + w / 2 - 1.6) / 2, 1.0, 2.3, z1, w / 2 - 2.6, false);
+    jalousie((x0 + w / 2 + 1.6 + x1 - 1) / 2, 1.0, 2.3, z1, w / 2 - 2.6, false);
+    jalousie(x0, 1.0, 2.3, (z0 + z1) / 2, d - 3, true);
+    jalousie(x1, 1.0, 2.3, (z0 + z1) / 2, d - 3, true);
+    box("floor", (x0 + x1) / 2, 0, (z0 + z1) / 2, w, 0.06, d);
+    box("ceiling", (x0 + x1) / 2, h - 0.06, (z0 + z1) / 2, w, 0.05, d);
+    box("roof", (x0 + x1) / 2, h, (z0 + z1) / 2 + 0.6, w + 1.6, 0.22, d + 2.4);
+    box("trim", (x0 + x1) / 2, h - 0.3, z1 + 1.8, w + 1.6, 0.5, 0.12);
+    signs.push({ lines: [name, sub], x: (x0 + x1) / 2, y: 2.75, z: z1 + 0.15, ry: 0, w: Math.min(6, w - 2), h: 0.6, bg: "#2f6b4f", fg: "#f3efe6" });
+  }
+  smallBuilding(-56, -4, 14, 9, "CANTEEN", "Kantina");
+  box("wood", -49, 0, -0.5, 8, 1.0, 0.6, 0, true);                       // serving counter
+  for (const tx of [-53, -45]) { box("wood", tx, 0.72, 2.3, 1.8, 0.05, 0.9); box("metal", tx, 0, 2.3, 0.08, 0.72, 0.08); }
+  smallBuilding(-56, -24, 14, 10, "LIBRARY", "Silid-aklatan");
+  props.push({ kind: "shelf", x: -55.6, y: 0, z: -20, ry: Math.PI / 2 }, { kind: "shelf", x: -55.6, y: 0, z: -18.9, ry: Math.PI / 2 }, { kind: "shelf", x: -55.6, y: 0, z: -17.8, ry: Math.PI / 2 });
+  box("wood", -49, 0.74, -19, 3, 0.05, 1.2);
+  box("metal", -49, 0, -19, 0.1, 0.74, 0.1);
+  box("path", -40, 0, 0.5, 14, 0.03, 3);    // walkway plaza → canteen
+  box("path", -40, 0, -13, 3, 0.03, 26);    // walkway canteen → library
   for (let i = -1; i <= 1; i++) box("wood", i * 3.5, 0, 17, 2.4, 0.45, 0.5);   // benches facing the flag
 
   // ============================== COVERED COURT ==============================
@@ -300,7 +382,7 @@
     const a = i * 2.39996, r = 52 + ((i * 53) % 13);
     treeSpots.push([Math.cos(a) * r, Math.sin(a) * r * 0.9]);
   }
-  treeSpots.push([-14, 22], [14, 22], [-40, 12], [-44, -14], [30, 26], [-26, 40], [24, 48]);
+  treeSpots.push([-14, 22], [14, 22], [-36, 12], [-36, -24], [30, 26], [-26, 40], [24, 48]);
   treeSpots.forEach(([x, z], i) => {
     if (Math.abs(x) < 6 && z > 18) return;                   // keep the walkway clear
     if (x > 34 && x < 70 && z > -20 && z < 8) return;        // keep the court clear
@@ -359,7 +441,10 @@
     plaza: { x: 0, z: 22, yaw: 0, label: "Flag plaza" },
     classroom: { x: -17.9, z: -7.0, yaw: 0.28, label: "Classroom 1" },
     podium: { x: cx, z: -22.8, yaw: Math.PI, label: "Podium" },
-    court: { x: C.x - 17.5, z: C.z + 3, yaw: -Math.PI / 2 + 0.12, label: "Covered court" }
+    court: { x: C.x - 17.5, z: C.z + 3, yaw: -Math.PI / 2 + 0.12, label: "Covered court" },
+    stage: { x: 12, z: 6, yaw: -Math.PI / 2, label: "Stage" },
+    canteen: { x: -46, z: 14, yaw: 0.25, label: "Canteen" },
+    library: { x: -45, z: -6.5, yaw: 0.3, label: "Library" }
   };
-  return { scene, colliders, places, markers, materials: M, props };
+  return { scene, colliders, places, markers, materials: M, props, signs };
 };
