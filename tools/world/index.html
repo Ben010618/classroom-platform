@@ -70,6 +70,9 @@
     <button type="button" data-go="classroom">Classroom 1</button>
     <button type="button" data-go="podium">Podium</button>
     <button type="button" data-go="court">Covered court</button>
+    <button type="button" data-go="stage">Stage</button>
+    <button type="button" data-go="canteen">Canteen</button>
+    <button type="button" data-go="library">Library</button>
     <button type="button" class="toggle" id="markers" aria-pressed="false">Hubs markers</button>
     <button type="button" class="toggle" id="quality" aria-pressed="false">Simple graphics</button>
   </div>
@@ -158,7 +161,7 @@
   });
   view.appendChild(renderer.domElement);
 
-  const { scene, colliders, places, markers, materials: M, props } = buildWorld(THREE, { realFurniture: !simple });
+  const { scene, colliders, places, markers, materials: M, props, signs } = buildWorld(THREE, { realFurniture: !simple });
   scene.background = new THREE.Color(0xa9d3ef);
   scene.fog = new THREE.Fog(0xa9d3ef, 60, 150);
 
@@ -250,20 +253,47 @@
     tex.encoding = THREE.sRGBEncoding;
     return new THREE.Mesh(new THREE.PlaneGeometry(w, h), new THREE.MeshBasicMaterial({ map: tex }));
   }
-  const sign = textPlane(["BAYANIHAN DEMO SCHOOL", "Paaralang Bayanihan"], 13.6, 0.76, "#2f6b4f", "#f3efe6");
-  sign.position.set(-2, 2.83, -2.42);
-  scene.add(sign);
-  const gateSign = textPlane(["Bayanihan Demo School"], 11.6, 0.6, "#2f6b4f", "#f3efe6");
-  gateSign.position.set(0, 4.0, 70.52);
-  gateSign.rotation.y = Math.PI;
-  scene.add(gateSign);
-  const gateSignIn = gateSign.clone(); gateSignIn.position.z = 69.48; gateSignIn.rotation.y = 0; scene.add(gateSignIn);
-  const boardText = textPlane(["Welcome, Class!", "Maligayang pagdating!"], 5.6, 1.4, "#2b5a40", "#e9efe6");
-  boardText.position.set(-23, 1.7, -25.78);
-  scene.add(boardText);
-  const roomSign = textPlane(["Room 1"], 1.4, 0.35, "#2f6b4f", "#f3efe6");
-  roomSign.position.set(-18.2, 2.45, -5.85);
-  scene.add(roomSign);
+  // Philippine flag (blue over red, white triangle at the hoist with the sun and three stars)
+  function flagPlane(w, h) {
+    const c = document.createElement("canvas");
+    c.width = 600; c.height = 300;
+    const g = c.getContext("2d");
+    g.fillStyle = "#0038a8"; g.fillRect(0, 0, 600, 150);
+    g.fillStyle = "#ce1126"; g.fillRect(0, 150, 600, 150);
+    g.fillStyle = "#ffffff"; g.beginPath(); g.moveTo(0, 0); g.lineTo(260, 150); g.lineTo(0, 300); g.closePath(); g.fill();
+    const gold = "#fcd116";
+    const star = (x, y, r) => {
+      g.beginPath();
+      for (let i = 0; i < 10; i++) {
+        const a = -Math.PI / 2 + (i * Math.PI) / 5, rr = i % 2 ? r * 0.4 : r;
+        g.lineTo(x + Math.cos(a) * rr, y + Math.sin(a) * rr);
+      }
+      g.closePath(); g.fillStyle = gold; g.fill();
+    };
+    const sx = 87, sy = 150;
+    g.fillStyle = gold; g.beginPath(); g.arc(sx, sy, 26, 0, Math.PI * 2); g.fill();
+    for (let i = 0; i < 8; i++) {
+      const a = (i * Math.PI) / 4;
+      g.save(); g.translate(sx, sy); g.rotate(a);
+      g.beginPath(); g.moveTo(30, -6); g.lineTo(56, 0); g.lineTo(30, 6); g.closePath(); g.fill();
+      g.restore();
+    }
+    star(22, 22, 14); star(22, 278, 14); star(230, 150, 14);
+    const tex = new THREE.CanvasTexture(c);
+    tex.encoding = THREE.sRGBEncoding;
+    return new THREE.Mesh(new THREE.PlaneGeometry(w, h), new THREE.MeshBasicMaterial({ map: tex, side: THREE.FrontSide }));
+  }
+  // All signs and the flag come from the world data, so new buildings get signs automatically
+  const allSigns = signs.concat([
+    { lines: ["Bayanihan Demo School"], x: 0, y: 4.0, z: 70.52, ry: Math.PI, w: 11.6, h: 0.6, bg: "#2f6b4f", fg: "#f3efe6" },
+    { lines: ["Bayanihan Demo School"], x: 0, y: 4.0, z: 69.48, ry: 0, w: 11.6, h: 0.6, bg: "#2f6b4f", fg: "#f3efe6" }
+  ]);
+  for (const sg of allSigns) {
+    const mesh = sg.flag ? flagPlane(sg.w, sg.h) : textPlane(sg.lines, sg.w, sg.h, sg.bg, sg.fg);
+    mesh.position.set(sg.x, sg.y, sg.z);
+    mesh.rotation.y = sg.ry || 0;
+    scene.add(mesh);
+  }
 
   // Hubs marker visualisation (toggle): seats = green discs, go-to points = rings, pods = boxes, screen = frame
   const markerViz = new THREE.Group();
@@ -331,6 +361,9 @@
   function area() {
     if (me.x > -30 && me.x < -16 && me.z > -26 && me.z < -6) return me.z < -21 ? "Podium" : "Classroom 1";
     if (me.x > 33 && me.x < 70 && me.z > -18 && me.z < 8) return "Covered court";
+    if (me.x > -58 && me.x < -40 && me.z > -6 && me.z < 12) return "Canteen";
+    if (me.x > -58 && me.x < -40 && me.z > -26 && me.z < -6) return "Library";
+    if (me.x > 8 && me.x < 28 && me.z > 0 && me.z < 12) return "Stage";
     if (me.z > 60) return "Main gate";
     if (me.z > -3 && me.z < 24 && Math.abs(me.x) < 34) return "Flag plaza";
     if (me.z > -6 && me.z < -3) return "Veranda";
