@@ -1,5 +1,16 @@
 # Bayanihan Demo School — world generator
 
+**Walk it now:** https://ben010618.github.io/classroom-platform/world/ (GitHub Pages, works on any phone or laptop browser, no install)
+
+**Run it from your own PC (offline copy):** download `index.html` and `world.js` into one folder and double-click `index.html`. The browser needs internet once to load the three.js library from the CDN.
+
+**Publish changes to the public page** (the `gh-pages` branch serves the device check at `/` and the world at `/world/`):
+```bash
+git worktree add ../pages origin/gh-pages -b pages-update
+cp tools/world/index.html tools/world/world.js ../pages/world/
+cd ../pages && git commit -am "Update world" && git push origin pages-update:gh-pages
+```
+
 One world definition ([`world.js`](world.js)) produces two things:
 
 | Output | What | How |
