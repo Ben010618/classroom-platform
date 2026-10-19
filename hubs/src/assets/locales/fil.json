@@ -1,0 +1,22 @@
+{
+  "toolbar.teacher-button": "Guro",
+  "teacher-hud.title": "Kontrol ng Guro",
+  "teacher-hud.lecture.start": "Simulan ang Lecture Mode",
+  "teacher-hud.lecture.end": "Tapusin ang Lecture Mode",
+  "teacher-hud.lecture.hint": "Imu-mute ang mga mag-aaral, ihihinto ang chat at mga bagay, at paupuin ang lahat. Nakakatipid din ito ng mobile data ng mga mag-aaral.",
+  "teacher-hud.learner-count": "{count, plural, =0 {Walang mag-aaral sa silid} one {# mag-aaral sa silid} other {# mag-aaral sa silid}}",
+  "teacher-hud.class.heading": "Klase",
+  "teacher-hud.mute-all": "I-mute lahat",
+  "teacher-hud.gather-seats": "Paupuin sa upuan",
+  "teacher-hud.gather-podium": "Tipunin sa podium",
+  "teacher-hud.not-enough-seats": "{seats} upuan lang ang nasa eksenang ito — sa podium pupunta ang mga sobrang mag-aaral.",
+  "teacher-hud.seat-lock": "I-lock ang mga mag-aaral sa upuan",
+  "teacher-hud.hands.heading": "Nakataas na kamay ({count})",
+  "teacher-hud.hands.empty": "Walang nakataas na kamay.",
+  "teacher-hud.permissions.heading": "Pahintulot ng mag-aaral",
+  "teacher-hud.lock.voice-chat": "Puwedeng magsalita ang mag-aaral",
+  "teacher-hud.lock.text-chat": "Puwedeng mag-chat ang mag-aaral",
+  "teacher-hud.lock.media": "Puwedeng magdagdag at maglipat ng bagay ang mag-aaral",
+  "teacher-hud.lock.drawing": "Puwedeng gumuhit ang mag-aaral",
+  "teacher-hud.lock.fly": "Puwedeng lumipad ang mag-aaral"
+}

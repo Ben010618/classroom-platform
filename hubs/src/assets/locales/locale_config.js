@@ -11,10 +11,12 @@ export const AVAILABLE_LOCALES = {
   ko: "한국어",
   de: "Deutsch",
   "zh-tw": "繁體中文",
-  it: "Italiano"
+  it: "Italiano",
+  fil: "Filipino" // classroom: UPSTREAM_PATCHES #3
 };
 
 // Map from alternative primary language tags to those we support
 export const FALLBACK_LOCALES = {
-  jp: "ja"
+  jp: "ja",
+  tl: "fil" // classroom: UPSTREAM_PATCHES #3 (browsers may report Tagalog)
 };
