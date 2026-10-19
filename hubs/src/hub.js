@@ -272,6 +272,7 @@ import { exposeBitECSDebugHelpers } from "./bitecs-debug-helpers";
 import { loadLegacyRoomObjects } from "./utils/load-legacy-room-objects";
 import { loadSavedEntityStates } from "./utils/entity-state-utils";
 import { shouldUseNewLoader } from "./utils/bit-utils";
+import { initClassroom, receiveClassroomMessage } from "./classroom/runtime"; // classroom: UPSTREAM_PATCHES #1
 
 const PHOENIX_RELIABLE_NAF = "phx-reliable";
 NAF.options.firstSyncSource = PHOENIX_RELIABLE_NAF;
@@ -1188,6 +1189,7 @@ document.addEventListener("DOMContentLoaded", async () => {
   const messageDispatch = new MessageDispatch(scene, entryManager, hubChannel, remountUI, mediaSearchStore);
   APP.messageDispatch = messageDispatch;
   document.getElementById("avatar-rig").messageDispatch = messageDispatch;
+  initClassroom(); // classroom: UPSTREAM_PATCHES #1
 
   const oauthFlowPermsToken = Cookies.get(OAUTH_FLOW_PERMS_TOKEN_KEY);
   if (oauthFlowPermsToken) {
@@ -1352,6 +1354,9 @@ document.addEventListener("DOMContentLoaded", async () => {
     });
 
   hubPhxChannel.on("message", ({ session_id, type, body, from }) => {
+    // classroom: UPSTREAM_PATCHES #1 — classroom commands are control messages, not chat.
+    if (type === "classroom") return receiveClassroomMessage({ sessionId: session_id, type, body });
+
     const getAuthor = () => {
       const userInfo = hubChannel.presence.state[session_id];
       if (from) {

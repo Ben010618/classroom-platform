@@ -72,6 +72,7 @@ import { ReactComponent as EnterIcon } from "./icons/Enter.svg";
 import { ReactComponent as InviteIcon } from "./icons/Invite.svg";
 import hubsLogo from "../assets/images/hubs-logo.png";
 import { PeopleSidebarContainer, userFromPresence } from "./room/PeopleSidebarContainer";
+import { TeacherHudSidebarContainer } from "./classroom/TeacherHudSidebarContainer"; // classroom: UPSTREAM_PATCHES #2
 import { ObjectListProvider } from "./room/hooks/useObjectList";
 import { ObjectsSidebarContainer } from "./room/ObjectsSidebarContainer";
 import { ObjectMenuContainer } from "./room/ObjectMenuContainer";
@@ -1529,6 +1530,13 @@ class UIRoot extends Component {
                           performConditionalSignIn={this.props.performConditionalSignIn}
                         />
                       )}
+                      {/* classroom: UPSTREAM_PATCHES #2 */}
+                      {this.state.sidebarId === "teacher" && isModerator && (
+                        <TeacherHudSidebarContainer
+                          presences={this.props.presences}
+                          onClose={() => this.setSidebar(null)}
+                        />
+                      )}
                       {this.state.sidebarId === "profile" && (
                         <ProfileEntryPanel
                           history={this.props.history}
@@ -1650,6 +1658,16 @@ class UIRoot extends Component {
                       <ChatToolbarButton
                         onClick={() => this.toggleSidebar("chat", { chatPrefix: "", chatAutofocus: false })}
                         selected={this.state.sidebarId === "chat"}
+                      />
+                    )}
+                    {/* classroom: UPSTREAM_PATCHES #2 */}
+                    {entered && isModerator && (
+                      <ToolbarButton
+                        icon={<ShieldIcon />}
+                        preset="accent4"
+                        label={<FormattedMessage id="toolbar.teacher-button" defaultMessage="Teacher" />}
+                        selected={this.state.sidebarId === "teacher"}
+                        onClick={() => this.toggleSidebar("teacher")}
                       />
                     )}
                     {entered && isThisMobileVR && (

@@ -1,0 +1,86 @@
+@use "../styles/theme.scss";
+
+:local(.content) {
+  display: flex;
+  flex-direction: column;
+  padding: 0 16px 16px;
+}
+
+:local(.section) {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 16px 0;
+  border-bottom: 1px solid theme.$border1-color;
+
+  &:last-child {
+    border-bottom: 0;
+  }
+}
+
+:local(.heading) {
+  font-size: theme.$font-size-sm;
+  font-weight: theme.$font-weight-bold;
+  color: theme.$text1-color;
+  margin: 0;
+}
+
+:local(.lecture-button) {
+  width: 100%;
+}
+
+:local(.hint),
+:local(.status) {
+  font-size: theme.$font-size-xs;
+  color: theme.$text3-color;
+  margin: 0;
+}
+
+:local(.status) {
+  color: theme.$text2-color;
+}
+
+:local(.warning) {
+  font-size: theme.$font-size-xs;
+  color: theme.$error-color;
+  margin: 0;
+}
+
+:local(.button-row) {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+:local(.hand-queue) {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+:local(.hand-entry) {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 0;
+  font-size: theme.$font-size-sm;
+  color: theme.$text1-color;
+}
+
+:local(.hand-position) {
+  min-width: 20px;
+  font-weight: theme.$font-weight-bold;
+  color: theme.$accent1-color;
+}
+
+:local(.hand-name) {
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+:local(.hand-time) {
+  font-size: theme.$font-size-xs;
+  color: theme.$text3-color;
+}
