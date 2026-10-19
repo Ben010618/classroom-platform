@@ -26,11 +26,11 @@ gh api -X POST "repos/$REPO/pages" -f "source[branch]=gh-pages" -f "source[path]
 echo "   -> https://${OWNER,,}.github.io/classroom-platform/  (first deploy takes ~1 min)"
 
 echo "== 3. Fork CI: push the classroom-build workflow and switch off upstream workflows we don't use"
-git -C "$HUBS_DIR" push origin classroom
 for wf in browser-stack.yml custom-docker-build-push.yml hc-pkgcaller.yml hubs-RetPageOrigin.yml \
           roadmap-auto-commenter.yml test-and-deploy-storybook.yml; do
   gh workflow disable "$wf" -R "$FORK" 2>/dev/null && echo "   disabled $wf" || true
 done
+git -C "$HUBS_DIR" push origin classroom   # triggers classroom-build -> ghcr.io/ben010618/hubs:classroom-latest
 
 echo "== 4. Labels"
 lbl() { gh label create "$1" -R "$REPO" -c "$2" -d "$3" --force >/dev/null; }
