@@ -6,7 +6,7 @@
 // ============================================================================================
 import { joinRoom, selfId } from "https://cdn.jsdelivr.net/npm/trystero@0.25.4/nostr/+esm";
 
-const APP_ID = "bayanihan-demo-school-v1";
+const APP_ID = "katuro-university-v1";
 const SEND_HZ = 10;
 const W = await waitForWorld();
 const { THREE, scene, camera, me } = W;
@@ -30,7 +30,7 @@ const fill = (sel, entries, value) => {
   }
 };
 $("mp-name").value = look.name || "";
-$("mp-room").value = store.get("world.room", "bayanihan-demo");
+$("mp-room").value = store.get("world.room", "katuro");
 fill($("mp-outfit"), Object.entries(A.OUTFITS).map(([k, v]) => [k, v.label]), look.outfit);
 fill($("mp-hair"), Object.entries(A.HAIR_STYLES), look.hair);
 const swatches = (el, palette, key) => {
@@ -111,7 +111,7 @@ $("mp-hand").addEventListener("click", () => {
 
 async function join() {
   look.name = ($("mp-name").value || "").trim().slice(0, 24) || "Guest";
-  const code = ($("mp-room").value || "bayanihan-demo").trim().toLowerCase().replace(/[^a-z0-9-]/g, "").slice(0, 40) || "bayanihan-demo";
+  const code = ($("mp-room").value || "katuro").trim().toLowerCase().replace(/[^a-z0-9-]/g, "").slice(0, 40) || "katuro";
   role = $("mp-teacher").checked ? "teacher" : "learner";
   store.set("world.look", look);
   store.set("world.room", code);

@@ -12,7 +12,7 @@
   const trees = []; // { x, z, r } for soft ground shadows in the preview
   const signs = []; // { lines | flag, x, y, z, ry, w, h, bg, fg } — painted as panels by the preview
   const scene = new THREE.Scene();
-  scene.name = "BayanihanDemoSchool";
+  scene.name = "KaturoUniversity";
   const colliders = []; // axis-aligned XZ rectangles the walker can't enter: [x0, z0, x1, z1]
 
   // ---------- palette (one material per colour → one draw call per colour after merging)
@@ -302,7 +302,7 @@
   put("dark", new THREE.BoxGeometry(0.015, 0.11, 0.01), cx + 0.04, 2.98, B.z0 + 0.19, 0, 0, -1.0);
   signs.push({ lines: ["Welcome, Class!", "Maligayang pagdating!"], x: cx, y: 1.7, z: B.z0 + 0.22, ry: 0, w: 5.6, h: 1.4, bg: "#2b5a40", fg: "#e9efe6" });
   signs.push({ lines: ["Room 1"], x: -18.2, y: 2.45, z: B.z1 + 0.15, ry: 0, w: 1.4, h: 0.35, bg: "#2f6b4f", fg: "#f3efe6" });
-  signs.push({ lines: ["BAYANIHAN DEMO SCHOOL", "Paaralang Bayanihan"], x: -2, y: 2.83, z: -2.42, ry: 0, w: 13.6, h: 0.76, bg: "#2f6b4f", fg: "#f3efe6" });
+  signs.push({ lines: ["KATURO UNIVERSITY", "Pamantasang Katuro"], x: -2, y: 2.83, z: -2.42, ry: 0, w: 13.6, h: 0.76, bg: "#2f6b4f", fg: "#f3efe6" });
   // Fluorescent tube lights: 3 rows × 4, the long fixtures every public-school classroom has
   for (const lx of [-27, -23, -19]) {
     for (const lz of [-22, -17.5, -13, -8.5]) {
@@ -331,7 +331,7 @@
   box("trim", S.x + 2.4, 1.0, S.z, 0.06, 3.0, 8.6);                      // backdrop panel
   for (const pz of [S.z - 4.4, S.z + 4.4]) box("metal", S.x - 2.6, 1.0, pz, 0.2, 3.4, 0.2);
   box("roof", S.x, 4.4, S.z, 6.2, 0.18, 10);
-  signs.push({ lines: ["Bayanihan Stage", "Entablado"], x: S.x + 2.36, y: 3.2, z: S.z, ry: -Math.PI / 2, w: 5, h: 0.9, bg: "#2f6b4f", fg: "#f3efe6" });
+  signs.push({ lines: ["Katuro Stage", "Entablado"], x: S.x + 2.36, y: 3.2, z: S.z, ry: -Math.PI / 2, w: 5, h: 0.9, bg: "#2f6b4f", fg: "#f3efe6" });
 
   // ============================== CANTEEN + LIBRARY (west side) ==============================
   function smallBuilding(x0, z0, w, d, name, sub) {

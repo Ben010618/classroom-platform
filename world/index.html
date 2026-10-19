@@ -1,5 +1,5 @@
 <meta charset="utf-8">
-<title>Bayanihan Demo School</title>
+<title>Katuro University</title>
 <meta name="claude:viewport-fit-sides" content="cover">
 <style>
   :root {
@@ -86,11 +86,11 @@
 
 <div id="view"></div>
 <div id="err" hidden></div>
-<div id="loading"><div><b>Bayanihan Demo School</b><span id="loadmsg">Loading the school…</span></div></div>
+<div id="loading"><div><b>Katuro University</b><span id="loadmsg">Loading the school…</span></div></div>
 
 <div class="hud">
   <div class="card title">
-    <b>Bayanihan Demo School</b>
+    <b>Katuro University</b>
     <span>You are at: <span id="where">Main gate</span></span>
     <div style="margin-top:6px"><button type="button" class="primary" id="mp-open">Join class (multiplayer)</button>
       <div id="mp-bar" hidden><span id="mp-status">Connecting…</span>
@@ -117,7 +117,7 @@
 
 <div class="bottom">
   <div class="card help">Move with <kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd> or arrow keys, hold <kbd>Shift</kbd> to run, drag to look around. On a phone: left thumb moves, right thumb looks.</div>
-  <div class="card stats" id="stats"></div>
+  <div class="card stats"><div id="device"></div><div id="stats"></div></div>
 </div>
 
 <div class="stick" id="stick" hidden><i></i></div>
@@ -177,22 +177,56 @@
     err.textContent = "The 3D library didn't load. Check your internet connection and reload.";
     return;
   }
+  // ---------- device detection → quality tier (low / medium / high)
+  function detectDevice() {
+    const ua = navigator.userAgent || "";
+    const uaData = navigator.userAgentData;
+    const touch = (navigator.maxTouchPoints || 0) > 0 || matchMedia("(pointer: coarse)").matches;
+    const shortSide = Math.min(screen.width, screen.height);
+    const os = /Android/i.test(ua) ? "Android" : /iPhone|iPad|iPod/i.test(ua) || (/Macintosh/.test(ua) && touch) ? "iOS" : /CrOS/.test(ua) ? "ChromeOS"
+      : /Windows/.test(ua) ? "Windows" : /Mac OS X/.test(ua) ? "macOS" : /Linux/.test(ua) ? "Linux" : "Other";
+    const vr = /OculusBrowser|Quest|Pico/i.test(ua);
+    const type = vr ? "VR headset" : (uaData && uaData.mobile) || /Mobi|iPhone/i.test(ua) ? "Phone" : touch && shortSide < 900 && os !== "Windows" ? "Tablet" : /CrOS/.test(ua) ? "Chromebook" : "Computer";
+    let gpu = "unknown GPU", webgl2 = false;
+    try {
+      const c = document.createElement("canvas");
+      const gl = c.getContext("webgl2") || c.getContext("webgl");
+      webgl2 = !!(gl && gl instanceof WebGL2RenderingContext);
+      const ext = gl && gl.getExtension("WEBGL_debug_renderer_info");
+      if (gl) gpu = (ext ? gl.getParameter(ext.UNMASKED_RENDERER_WEBGL) : gl.getParameter(gl.RENDERER)) || gpu;
+      gpu = gpu.replace(/^ANGLE \((.*)\)$/, "$1").replace(/\s*\(0x[0-9a-f]+\)|Direct3D11.*|, D3D11.*|vs_5_0.*/gi, "").replace(/^(Google|Intel|NVIDIA|AMD|ARM|Qualcomm|Apple),\s*/i, "").trim();
+      const lose = gl && gl.getExtension("WEBGL_lose_context"); if (lose) lose.loseContext();
+    } catch (e) { /* no WebGL */ }
+    const mem = navigator.deviceMemory || 0;          // GB, Chrome/Android only
+    const cores = navigator.hardwareConcurrency || 0;
+    const mobile = type === "Phone" || type === "Tablet";
+    const weakGpu = /Mali-(G3\d|G5[12]|T)|Adreno \(TM\) [3-5]\d\d|Adreno [3-5]\d\d|PowerVR|SwiftShader|llvmpipe|Intel\(R\) HD Graphics [2-5]|UHD Graphics 6\d\d|Mali-4/i.test(gpu);
+    const strongGpu = /NVIDIA|GeForce|RTX|Radeon RX|Radeon Pro|Apple M\d|Apple GPU|Adreno \(TM\) [7-9]\d\d|Adreno [7-9]\d\d|Mali-G7[1-9]\d|Mali-G[6-9]1\d|Immortalis|Arc/i.test(gpu);
+    let tier = "medium";
+    if (!webgl2 || weakGpu || (mem && mem <= 2) || (mobile && cores && cores <= 4)) tier = "low";
+    else if (strongGpu && (!mobile || mem >= 6 || os === "iOS")) tier = "high";
+    return { type, os, gpu, mem, cores, touch, tier };
+  }
+  const device = detectDevice();
   let renderer;
   try {
-    renderer = new THREE.WebGLRenderer({ antialias: false, powerPreference: "high-performance" });
+    renderer = new THREE.WebGLRenderer({ antialias: device.tier === "high", powerPreference: "high-performance" });
   } catch (e) {
     err.hidden = false;
     err.textContent = "This device or browser can't show 3D graphics (WebGL is unavailable).";
     return;
   }
-  renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 1.5));
+  renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, { low: 1, medium: 1.5, high: 2 }[device.tier]));
   renderer.outputEncoding = THREE.sRGBEncoding;
   renderer.toneMapping = THREE.ACESFilmicToneMapping;
   renderer.toneMappingExposure = 1.0;
 
   // ---------- realistic assets (CC0, see assets/CREDITS.md). "Simple graphics" skips them.
-  let simple = false;
-  try { simple = localStorage.getItem("world.simple") === "1"; } catch (e) {}
+  let simple = device.tier === "low";
+  try { const saved = localStorage.getItem("world.simple"); if (saved !== null) simple = saved === "1"; } catch (e) {}
+  const deviceEl = document.getElementById("device");
+  const describeDevice = () => `${device.type} · ${device.os} · ${device.gpu.slice(0, 32)}${device.mem ? " · " + device.mem + " GB" : ""} · ${simple ? "Simple" : device.tier[0].toUpperCase() + device.tier.slice(1)} quality`;
+  deviceEl.textContent = describeDevice();
   const loadmsg = document.getElementById("loadmsg");
   const assets = { tex: {}, models: {}, sky: null };
   if (!simple && THREE.GLTFLoader && THREE.RGBELoader) {
@@ -359,8 +393,8 @@
   }
   // All signs and the flag come from the world data, so new buildings get signs automatically
   const allSigns = signs.concat([
-    { lines: ["Bayanihan Demo School"], x: 0, y: 4.0, z: 70.52, ry: Math.PI, w: 11.6, h: 0.6, bg: "#2f6b4f", fg: "#f3efe6" },
-    { lines: ["Bayanihan Demo School"], x: 0, y: 4.0, z: 69.48, ry: 0, w: 11.6, h: 0.6, bg: "#2f6b4f", fg: "#f3efe6" }
+    { lines: ["KATURO UNIVERSITY"], x: 0, y: 4.0, z: 70.52, ry: Math.PI, w: 11.6, h: 0.6, bg: "#2f6b4f", fg: "#f3efe6" },
+    { lines: ["KATURO UNIVERSITY"], x: 0, y: 4.0, z: 69.48, ry: 0, w: 11.6, h: 0.6, bg: "#2f6b4f", fg: "#f3efe6" }
   ]);
   // Soft ground shadows under trees: one instanced draw call, no shadow maps (cheap on phones)
   const shadowTex = window.Avatars.shadowTexture(THREE);
@@ -510,6 +544,7 @@
   resize();
 
   const statsEl = document.getElementById("stats");
+  let slowFor = 0, offeredSimple = false;
   let last = performance.now(), frames = 0, fpsT = last, fps = 0, lastArea = "";
   function frame(now) {
     const dt = Math.min(0.05, (now - last) / 1000);
@@ -543,6 +578,20 @@
     if (now - fpsT > 500) {
       fps = Math.round((frames * 1000) / (now - fpsT)); frames = 0; fpsT = now;
       statsEl.textContent = `${fps} fps · ${renderer.info.render.calls} draws · ${(renderer.info.render.triangles / 1000).toFixed(1)}k tris`;
+      slowFor = fps < 24 && !simple ? slowFor + 0.5 : 0;
+      if (slowFor >= 6 && !offeredSimple) {
+        offeredSimple = true;
+        const t = document.getElementById("mp-toast");
+        if (t) {
+          t.innerHTML = "";
+          t.append("This device is struggling. ");
+          const b = document.createElement("button");
+          b.type = "button"; b.className = "toggle"; b.textContent = "Switch to simple graphics";
+          b.addEventListener("click", () => document.getElementById("quality").click());
+          t.append(b); t.hidden = false;
+          setTimeout(() => { t.hidden = true; }, 12000);
+        }
+      }
       const a = area();
       if (a !== lastArea) { whereEl.textContent = a; lastArea = a; }
     }
@@ -554,7 +603,7 @@
     .map(m => ({ x: m.position.x, z: m.position.z, yaw: m.rotation.y }));
   const pods = markers.children.filter(m => /^pod-[a-d]$/.test(m.name)).map(m => ({ x: m.position.x, z: m.position.z, w: m.scale.x, d: m.scale.z }));
   places.podiumFront = { x: places.podium.x, z: -21.9, yaw: 0 };
-  window.__world = { THREE, scene, camera, renderer, me, places, go, seats, pods, byName, onTick: null };
+  window.__world = { THREE, scene, camera, renderer, me, places, go, seats, pods, byName, device, onTick: null };
   window.dispatchEvent(new Event("world-ready"));
 
   go("gate");
