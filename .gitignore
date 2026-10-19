@@ -8,3 +8,6 @@ desktop.ini
 
 # Dependencies
 node_modules/
+# Secrets — never commit
+deploy/.env
+deploy/work/
