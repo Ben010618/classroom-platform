@@ -8,3 +8,7 @@ desktop.ini
 
 # Dependencies
 node_modules/
+
+# Local test pages
+tools/world/_*.html
+tools/world/work-*/

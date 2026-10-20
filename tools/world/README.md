@@ -1,0 +1,157 @@
+# Katuro University — world generator
+
+**Walk it now:** https://ben010618.github.io/classroom-platform/world/ (GitHub Pages, works on any phone or laptop browser, no install)
+
+**Run it from your own PC (offline copy):** download `index.html` and `world.js` into one folder and double-click `index.html`. It needs an internet connection to load the three.js library from the CDN (cached after the first visit).
+
+**Publish changes to the public page** (the `gh-pages` branch serves the device check at `/` and the world at `/world/`):
+```bash
+git worktree add ../pages origin/gh-pages -b pages-update
+cp tools/world/index.html tools/world/world.js ../pages/world/
+cd ../pages && git commit -am "Update world" && git push origin pages-update:gh-pages
+```
+
+One world definition ([`world.js`](world.js)) produces two things:
+
+| Output | What | How |
+| :--- | :--- | :--- |
+| **Walkable preview** | [`index.html`](index.html): first-person walk in any browser (keyboard, mouse or touch), with "Go to" buttons and a toggle showing the Hubs markers | `npm run preview`, then open http://localhost:8766 |
+| **Hubs scene** | `assets/scenes/katuro-university.glb`: Draco-compressed, with `MOZ_hubs_components` | `npm ci && npm run export` |
+
+## RPG mode (Medium and High devices)
+
+| | |
+| :--- | :--- |
+| **Characters** | Realistic **male and female bodies** from Quaternius *Universal Base Characters* (**CC0**) with real eyes, eyebrows and 5 hairstyles, and **16 animations** retargeted bone by bone from the *Universal Animation Library* (idle, talk, walk, jog, sprint, jump, sit, interact, pick up, dance…, with fingers). Skin tone (5) and uniforms are painted over the body texture by a shader (`character.js`); the **skirt** (skinned to the legs), **polo collar**, **school ID lanyard** and **backpack** are 3D. Faces **blink** and the mouth moves while talking. The torso is smoothed at build time so uniforms don't show the athletes' muscles, and the male face is cleaned of stubble. Built by `node fetch-characters.mjs --ubc "<Universal Base Characters[Standard].zip>"` (about 630 KB per body, 2.1 MB with hair). |
+| **Ready-made characters** | **16 school-appropriate characters** from Quaternius *Ultimate Modular Men / Women* (**CC0**): casual, hoodie, business suit, farmer, worker, beach, adventurer, astronaut, king, formal, medieval, witch (the costume ones suit school plays and events). Same 16 animations (retargeted, feet following the ankles of their IK rig), one draw call each, skin tone and hair colour still apply. Loaded only when someone uses them (~600 KB each). **No weapons or military outfits:** the SWAT, Soldier, Sci-fi (gun-like device) and both Punk characters are excluded in `fetch-characters.mjs`, and the packs' props (swords, guns) are removed at build time. |
+| **Character picker** | Menu → **Change my character**: ‹ › through "School student (customise)" and the 16 characters, with a **spinning preview** you can drag to turn. Staff in the school use them too (principal, librarian, gardener, canteen, maintenance). |
+| **Emotes** | **1–5** or the ☺ button: wave, clap, cheer, nod, dance. Synced in multiplayer. |
+| **Physics** | **[Rapier](https://rapier.rs) 0.19.3** (Apache-2.0) kinematic character controller: gravity, jumping, sliding along walls, solid desks, trees and fences, and **climbing the stage stairs** (a hidden ramp collider). Falls back to simple collision if it can't load. |
+| **Camera** | Third-person orbit (drag to look) that pulls in and never crosses walls, windows or doors. **V** switches to first person. |
+| **Controls** | Computer: **WASD** move · **Shift/R** run · **Space** jump · **C** sit at the nearest chair or stand · **H** raise hand · **V** camera. Phone: thumbstick ring and round **Jump / Run / Hand / Sit / View** buttons. |
+| **Device detection** | Type, OS, GPU, memory and cores pick **Low / Medium / High**. Low keeps the light first-person mode. The badge bottom-right shows what was detected. |
+
+## Things to do
+
+| Module | What |
+| :--- | :--- |
+| `interact.js` | Walk up and press **E** (or tap the prompt): **doors** that open and close (closed doors are solid), **write on the chalkboard**, **show PDF slides** on the classroom screen (pdf.js, loaded on demand), **read books** in the library, **buy snacks** at the canteen (₱50 allowance a day), ring the **school bell**, **raise the flag**, **water the garden**, drink water, wash hands, grab a basketball, perform on stage. Doors, board, slides, flag and bell are **synced in multiplayer** (slides only from the teacher), and people who join later are caught up. |
+| `npc.js` | People in the school who talk to you (English or Filipino): Mang Ben the guard, Aling Nena at the canteen, Ms. Reyes the librarian, Dr. Cruz the principal, Mang Tonyo in the garden, Mr. Santos in the Science Lab, and three students walking around who wave as you pass. Hidden and paused when far away. |
+| `quests.js` | **First-day tasks** (J or 📋): 10 orientation tasks with a chime, a counter and confetti at the end; saved on the device. |
+| `minimap.js` | **Mini-map** (top right) with you, classmates, staff and a pin on your next task; tap it for the whole campus and tap a place to go there. |
+| `i18n.js` | **English / Filipino** for the menus, prompts, places, tasks and dialogue (Menu → Settings). |
+
+New places: **Grade 8 room**, **Science Laboratory**, **ICT Room** (rooms 2–4 now open, box furniture so they stay cheap), and an **Administration** building behind the school with the **Principal's office** and **comfort rooms**. Also water dispensers, a school bell, sports equipment on the court, and garden beds at three growth stages with tomatoes and eggplants.
+
+The loading screen shows a progress bar and tips, and a **controls guide** appears on the first visit (again from Menu → Settings).
+
+## Nature (`nature.js`)
+
+Real plants from two Quaternius **CC0** packs, built into one 370 KB file (`assets/nature/nature.glb`) by `fetch-nature.mjs`:
+
+- **Coconut palms** lining the driveway and the perimeter, broadleaf **shade trees**, **bamboo** clumps, a **calamansi** tree by the canteen.
+- Flowering **bushes** and **flower beds** around the flag plaza and gate, ferns and leafy plants along the canteen, library and court, rocks.
+- The **Gulayan sa Paaralan** has real crops: tomato, pechay, corn, kalabasa, carrot and watermelon. **Watering a bed grows it** to the next stage.
+- Leaves and fronds sway in the wind.
+
+Cost control: trees are GPU-instanced, and beyond 25 m each one is swapped for an **impostor** (a picture of the tree rendered at load, on two crossed planes, 4 triangles). Small plants are merged per 40 m chunk and hidden beyond 70 m, the garden is one mesh. Typical outdoor views: 80–130 draw calls, 80–115k triangles. Simple graphics keeps the original low-poly trees (and the Hubs export always does).
+
+### Rebuilding the character and nature assets
+
+Download the packs from quaternius.com / itch.io (free), then:
+```bash
+npm ci
+node fetch-characters.mjs --ubc "<Universal Base Characters[Standard].zip>" --men "<Ultimate Modular Men Pack>" --women "<Ultimate Modular Women Pack>"
+node fetch-nature.mjs --megakit "<Stylized Nature MegaKit[Standard]>" --crops "<Nature Crops Pack>"
+```
+Each `fetch-characters` pack argument is optional. FBX files are converted with the bundled FBX2glTF (`fbx2gltf` dev dependency). `_chartest.html#mod` and `_naturetest.html` (git-ignored dev pages) show every character and model for a quick visual check.
+
+## Environment (`env.js`)
+
+- **Time of day:** Day, Afternoon or Evening (classroom lights glow at night). **Weather:** rain with streaks, rain sound (muffled indoors), wet ground and the odd thunderclap. Both in Menu → Settings, remembered per device.
+- **Sound effects** for the interactions (bell, doors, water, coins, pages, applause…), synthesised like the rest of the soundscape.
+
+- **Wind:** tree canopies and potted plants sway in gusts (GPU vertex animation), and the **Philippine flag waves** as cloth.
+- **Life:** a flock of birds circling with flapping wings (GPU-instanced, 3 draw calls), falling leaves near you, and butterflies in the vegetable garden.
+- **Soundscape, generated live with the Web Audio API (no audio files):**
+  - wind gusts, muffled indoors;
+  - leaf rustle near trees;
+  - **birdsong** (trills, two-note whistles, descending calls) from random directions, quieter inside;
+  - **footsteps** at walking or running cadence;
+  - ceiling-fan hum in Classroom 1.
+  - **Sound: on/off** button. Browsers start audio after the first tap or key press.
+
+## Multiplayer demo (Join class)
+
+Press **Join class (multiplayer)**. Everyone who enters the **same class code** meets in the same school.
+
+- **Appearance editor:** skin tone (5), hairstyle (short, long, ponytail, bun, buzz cut), hair colour (5) and outfit (polo or blouse school uniform, PE shirt, casual, teacher), with a live 3D preview. It's remembered on the device.
+- **Avatars:** HD characters (RPG mode) or light avatars (Low devices), with name tags, a raised arm when the hand is up, and walking, running, jumping and sitting in sync. The talking animation plays while someone speaks.
+- **Voice:** spatial, so people get louder as you walk closer. Pods are cut off from each other, and a teacher standing on the podium is heard everywhere.
+- **Teacher** (tick "I'm the teacher"): Mute everyone, Gather to seats (optionally locked), Call to the front, Unlock seats, and the raised-hands list.
+
+How it works: [`multiplayer.js`](multiplayer.js) uses **[Trystero](https://github.com/dmotz/trystero) 0.25.4**. Browsers connect **directly to each other** (WebRTC), and public Nostr relays are used only to find each other. There is no server of ours. The relay list is set explicitly in `multiplayer.js` (two of Trystero's defaults went offline); if joining stops working, check those relays first.
+
+**Limits — this is a demo, not the classroom platform:**
+- About **8 people** at most. Every browser sends its voice to every other browser.
+- Roles are self-declared. Anyone can tick "I'm the teacher", and nothing is enforced on a server.
+- Peers see each other's IP addresses, and public relays carry the connection setup. **Don't use it for real classes with minors.**
+- Some mobile networks block direct connections (there's no relay server). On those, voice or the connection itself can fail.
+
+The real classroom (35 learners, server-enforced permissions, no third parties) is the Hubs deployment ([`deploy/README.md`](../../deploy/README.md)), which loads this same school as its scene.
+
+## Realistic mode (default) and Simple graphics
+
+The preview loads real, **CC0** assets from [Poly Haven](https://polyhaven.com) (credits: [`assets/CREDITS.md`](assets/CREDITS.md)):
+
+| What | Asset | After reduction |
+| :--- | :--- | :--- |
+| Learner desks + chairs (35 each, GPU-instanced) | *School Desk 01*, *School Chair 01* | 580 + 506 triangles each (from 4,162 + 5,072) |
+| Teacher's desk, book shelves, 4 ceiling fans (spinning) | *Metal Office Desk*, *Shelf 01*, *Ceiling Fan* | 3.4k / 0.2k / 1.6k triangles |
+| Floor, walls, roof, plaza, lawn, court, wood | *terrazzo_tiles*, *painted_plaster_wall*, *corrugated_iron*, *concrete_floor_02*, *leafy_grass*, *asphalt_floor*, *wood_table* | 512 px colour + normal maps |
+| Sky and lighting | *Kloofendal 48d Partly Cloudy (Pure Sky)* | 1K HDR for lighting, 2K JPG for the visible sky |
+
+Total download about **3.1 MB**. The full view is about 70k triangles and 26–41 draw calls (targets 80k / 80).
+**Simple graphics** (top-right button, remembered per device) skips all of it for very old phones. The page also falls back to it automatically if an asset fails to load.
+Refresh the assets with `npm run assets` (`fetch-assets.mjs` downloads, shrinks to 512 px, simplifies the models and writes the credits).
+
+The Hubs scene export still uses the simple box furniture. Putting the real models in the Hubs file needs a check that Hubs loads GPU-instanced meshes (`EXT_mesh_gpu_instancing`) — Gate 2.
+
+## The world
+
+| Place | Contents |
+| :--- | :--- |
+| Main gate | Gate arch, perimeter fence, 4 spawn points |
+| Flag plaza | Raised platform, flagpole (plain flag), 3 benches |
+| School building | 4 classrooms on a covered veranda (rooms 2–4 closed) |
+| **Classroom 1** | Terrazzo floor, bulletin boards, wall clock, chalkboard + slide screen, lectern, teacher's desk, book shelves, 12 fluorescent tube lights, 4 ceiling fans, **35 desks with chairs (5 × 7)**, **4 breakout pods** with 5 stools each |
+| Covered court | Court with lines and two hoops under a roof |
+| Stage | Covered stage at the plaza for programmes, with steps and a backdrop |
+| Canteen | Serving counter, tables, waste bins, handwashing station |
+| Library | Book shelves, reading table |
+| Vegetable garden | *Gulayan sa Paaralan*: 6 raised beds with rows of plants |
+| Campus details | Jalousie windows, potted plants on the veranda, colour-coded bins, handwashing stations, a Philippine flag, soft shadows under trees and people |
+| Grounds | ~50 shade trees, walkway, lawn |
+
+**Hubs scene budget:** 26,526 triangles · 22 draw calls · 0.71 MB (targets: 80k · 80 · 8 MB).
+
+## Hubs markers written into the scene
+
+| Node | Hubs component | Used by |
+| :--- | :--- | :--- |
+| `seat-01` … `seat-35` | `waypoint` (occupiable, disables motion and teleport) | Gather to seats, Seat Lock, Lecture Mode |
+| `podium` | `waypoint` (faces the class) | Gather to podium, teacher spot |
+| `pod-a` … `pod-d` | `audio-zone` (in↔out isolated) + `audio-params`, scaled to the pod | Breakout groups can't hear each other |
+| `pod-a-spot` … | `waypoint` | "Go to pod" |
+| `screen` | `media-frame` (4.8 × 2.7 m, all-2d) | Teacher drops the PDF slides here |
+| `spawn-01` … `spawn-04` | `waypoint` (spawn point) | Where learners appear, at the gate |
+| `classroom-1`, `flag-plaza`, `covered-court` | `waypoint` | Quick travel |
+| `navmesh` | `nav-mesh` + `visible: false` | Walkable ground |
+| `sky-light`, `sun` | `hemisphere-light`, `directional-light` | Lighting (no shadows, per budget) |
+
+## Known gaps (v1)
+
+- **Navmesh is one flat plane.** Walls are solid in the preview but not in Hubs yet, so avatars can walk through walls. Fix: generate a navmesh with the building cut out, or make it in Blender.
+- **Podium microphone and speakers** (`audio-source` with only-moderators + `audio-target` nodes) are not in the file yet: they link nodes by index, which is easier to set in the Hubs Blender add-on. Until then, the teacher uses Lecture Mode (learners muted) instead of the megaphone.
+- **Signs** (school name, "Room 1", board greeting) exist only in the preview. They're canvas textures and are not exported.
+- Untested in a live Hubs room. That's part of Gate 2, once the Phase 1 server exists.
