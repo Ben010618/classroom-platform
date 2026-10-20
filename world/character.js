@@ -4,6 +4,8 @@
 // 16 animations retargeted from the Universal Animation Library (fetch-characters.mjs).
 // Skin tone and school uniforms are painted by a shader over the body texture; the skirt, polo
 // collar, ID lace and backpack are real 3D pieces. Faces blink and the mouth moves while talking.
+// Looks with `model` set use a ready-made character from the Ultimate Modular packs instead (loaded on
+// demand, same animations and interface; skin tone and hair colour still apply).
 // Same interface as avatar.js so multiplayer can use either:
 //   root.userData.{setHand, setTalking, setName, setSitting, setMove, tick, emote, interact}
 // Needs THREE r128, GLTFLoader, SkeletonUtils, and window.Avatars (name tags, palettes, shadow).
@@ -31,13 +33,24 @@
   const EMOTES = { wave: "Wave", clap: "Clap", cheer: "Cheer", nod: "Nod", dance: "Dance" };
 
   let T = null; // loaded templates
+  const BASE = { base: "assets/characters/", version: "" };
+  let loaderP = null, MODULAR = [];
+  function getLoader(THREE) {
+    if (!loaderP) loaderP = import("https://cdn.jsdelivr.net/npm/meshoptimizer@1.3.0/meshopt_decoder.mjs").then(async ({ MeshoptDecoder }) => {
+      await MeshoptDecoder.ready;
+      const loader = new THREE.GLTFLoader();
+      loader.setMeshoptDecoder(MeshoptDecoder);
+      return loader;
+    });
+    return loaderP;
+  }
 
   async function load(THREE, base, version) {
     if (T) return T;
-    const { MeshoptDecoder } = await import("https://cdn.jsdelivr.net/npm/meshoptimizer@1.3.0/meshopt_decoder.mjs");
-    await MeshoptDecoder.ready;
-    const loader = new THREE.GLTFLoader();
-    loader.setMeshoptDecoder(MeshoptDecoder);
+    BASE.base = base; BASE.version = version;
+    const loader = await getLoader(THREE);
+    // ready-made characters for the picker (built by fetch-characters.mjs); optional
+    try { MODULAR = await (await fetch(`${base}modular.json?v=${version}`)).json(); } catch (e) { MODULAR = []; }
     const get = name => new Promise((ok, fail) => loader.load(`${base}${name}.glb?v=${version}`, ok, undefined, fail));
     const hairNames = Object.keys(HAIR_HEAD);
     const [male, female, ...hair] = await Promise.all([get("body-male"), get("body-female"), ...hairNames.map(n => get("hair-" + n))]);
@@ -223,6 +236,7 @@ uniform float uSkirt, uPolo, uSleeve, uNeck, uWaist, uKnee, uAnkle, uShoulderX, 
     if (!T) throw new Error("Characters.load() first");
     const A = window.Avatars;
     const L = { ...A.DEFAULT_LOOK, ...look };
+    if (L.model && MODULAR.some(m => m.id === L.model)) return createModular(THREE, L, opts);
     const kind = bodyKind(L);
     const B = T.body[kind];
     const root = new THREE.Group();
@@ -304,11 +318,22 @@ uniform float uSkirt, uPolo, uSleeve, uNeck, uWaist, uKnee, uAnkle, uShoulderX, 
     };
     setName(L.name, opts.role);
 
-    // ---------- animation state machine (cross-fades between clips)
+    // ---------- animations, raised hand, emotes, face (shared with the modular characters)
+    const api = rig(THREE, root, model, B.clips, {
+      upperR: bone("upperarm_r"), foreR: bone("lowerarm_r"), handR: bone("hand_r"),
+      upperL: bone("upperarm_l"), foreL: bone("lowerarm_l"), handL: bone("hand_l"), head: bone("Head")
+    }, face, opts);
+    root.userData = { look: L, isCharacter: true, body: kind, setName, ...api };
+    return root;
+  }
+
+  // Animation state machine + procedural arm poses (raised hand, emotes) + optional face (blink, talk).
+  // bones: { upperR, foreR, handR, upperL, foreL, handL, head }. Returns the userData API.
+  function rig(THREE, root, model, clips, bones, face, opts) {
     const mixer = new THREE.AnimationMixer(model);
     const actions = {};
     for (const [key, clipName] of Object.entries(CLIP)) {
-      const clip = B.clips[clipName];
+      const clip = clips[clipName];
       if (!clip) continue;
       const a = mixer.clipAction(clip);
       if (/Start|Enter|Exit|Land|Interact|PickUp/.test(clipName)) { a.setLoop(THREE.LoopOnce, 1); a.clampWhenFinished = true; }
@@ -349,11 +374,11 @@ uniform float uSkirt, uPolo, uSleeve, uNeck, uWaist, uKnee, uAnkle, uShoulderX, 
     mixer.update(Math.random() * 2);   // crowds shouldn't breathe in sync
 
     // ---------- procedural arm poses (raised hand, emotes), applied after the animation, in world space
-    const arm = s => ({ upper: bone("upperarm_" + s), fore: bone("lowerarm_" + s), hand: bone("hand_" + s) });
-    const R = arm("r"), Lf = arm("l"), head = bone("Head");
+    const R = { upper: bones.upperR, fore: bones.foreR, hand: bones.handR }, Lf = { upper: bones.upperL, fore: bones.foreL, hand: bones.handL }, head = bones.head;
     const v1 = new THREE.Vector3(), v2 = new THREE.Vector3(), v3 = new THREE.Vector3();
     const qDelta = new THREE.Quaternion(), qParent = new THREE.Quaternion(), qWorld = new THREE.Quaternion(), qTarget = new THREE.Quaternion(), qRoot = new THREE.Quaternion();
     const aimBone = (b, child, amount, dirWorld) => {
+      if (!b || !child) return;
       b.getWorldPosition(v1); child.getWorldPosition(v2);
       v3.subVectors(v2, v1).normalize();
       qDelta.setFromUnitVectors(v3, dirWorld);
@@ -365,14 +390,12 @@ uniform float uSkirt, uPolo, uSleeve, uNeck, uWaist, uKnee, uAnkle, uShoulderX, 
       b.updateMatrixWorld(true);
     };
     const dir = new THREE.Vector3(), dir2 = new THREE.Vector3();
-    const local = (x, y, z, out) => out.set(x, y, z).applyQuaternion(qRoot).normalize();   // character space: +x right? see below
+    // character space: the character faces −Z and its right hand is on +X
+    const local = (x, y, z, out) => out.set(x, y, z).applyQuaternion(qRoot).normalize();
     let handTarget = 0, handAmt = 0, emote = null, emoteT = 0, emoteAmt = 0;
-    // blinking
     let blinkIn = 1 + Math.random() * 3, blinkT = -1;
 
-    root.userData = {
-      look: L, isCharacter: true, body: kind,
-      setName,
+    return {
       setHand: on => { handTarget = on ? 1 : 0; },
       setTalking: level => { talking = level; },
       setSitting: on => { sitting = !!on; },
@@ -387,20 +410,18 @@ uniform float uSkirt, uPolo, uSleeve, uNeck, uWaist, uKnee, uAnkle, uShoulderX, 
       tick: dt => {
         chooseState();
         mixer.update(dt);
-        // face
-        face.talk.value += (Math.min(1, talking * 1.6) * (0.6 + 0.4 * Math.sin(performance.now() / 70)) - face.talk.value) * Math.min(1, dt * 18);
-        blinkIn -= dt;
-        if (blinkIn < 0 && blinkT < 0) blinkT = 0;
-        if (blinkT >= 0) { blinkT += dt; face.blink.value = Math.sin(Math.min(1, blinkT / 0.16) * Math.PI); if (blinkT > 0.16) { blinkT = -1; face.blink.value = 0; blinkIn = 2 + Math.random() * 4; } }
-        // arms
+        if (face) {
+          face.talk.value += (Math.min(1, talking * 1.6) * (0.6 + 0.4 * Math.sin(performance.now() / 70)) - face.talk.value) * Math.min(1, dt * 18);
+          blinkIn -= dt;
+          if (blinkIn < 0 && blinkT < 0) blinkT = 0;
+          if (blinkT >= 0) { blinkT += dt; face.blink.value = Math.sin(Math.min(1, blinkT / 0.16) * Math.PI); if (blinkT > 0.16) { blinkT = -1; face.blink.value = 0; blinkIn = 2 + Math.random() * 4; } }
+        }
         handAmt += (handTarget - handAmt) * Math.min(1, dt * 7);
         if (emote) { emoteT += dt; if (emoteT > 2.6) emote = null; }
         emoteAmt += ((emote ? 1 : 0) - emoteAmt) * Math.min(1, dt * 8);
         if (handAmt < 0.01 && emoteAmt < 0.01) return;
         model.updateMatrixWorld(true);
         root.getWorldQuaternion(qRoot);
-        // character space: the character faces −Z, so its right hand is at +X... after the π turn of the model,
-        // the asset's right side (x < 0) ends up at +X in root space
         if (handAmt > 0.01 && !(emote && emoteAmt > 0.5)) {
           local(0.12, 1, -0.08, dir);
           aimBone(R.upper, R.fore, handAmt, dir); aimBone(R.fore, R.hand, handAmt, dir);
@@ -424,7 +445,88 @@ uniform float uSkirt, uPolo, uSleeve, uNeck, uWaist, uKnee, uAnkle, uShoulderX, 
         }
       }
     };
+  }
+
+  // ---------- modular characters (Ultimate Modular packs): loaded on demand, one material, recoloured skin + hair
+  // Returns the root straight away; the model appears when its file has loaded (calls made before are replayed).
+  function createModular(THREE, L, opts) {
+    const A = window.Avatars;
+    const root = new THREE.Group();
+    root.name = "character";
+    const scale = opts.role === "teacher" ? 0.96 : 0.92;
+    const shadow = new THREE.Mesh(new THREE.PlaneGeometry(0.9, 0.9).rotateX(-Math.PI / 2),
+      new THREE.MeshBasicMaterial({ map: A.shadowTexture(THREE), transparent: true, depthWrite: false, opacity: 0.65 }));
+    shadow.position.y = 0.02;
+    root.add(shadow);
+    let tag = null, top = 1.86, api = null;
+    const setName = (name, role) => {
+      if (tag) { root.remove(tag); tag.material.map.dispose(); tag.material.dispose(); tag = null; }
+      if (opts.noTag) return;
+      tag = A.nameTag(THREE, name, role || opts.role);
+      tag.position.set(0, top * scale + 0.24, 0);
+      root.add(tag);
+    };
+    setName(L.name, opts.role);
+    // calls made before the model loads are remembered and replayed
+    const pending = {};
+    const call = (fn, ...args) => (api ? api[fn](...args) : (pending[fn] = args));
+    root.userData = {
+      look: L, isCharacter: true, body: "mod", setName, loaded: false,
+      setHand: on => call("setHand", on), setTalking: l => call("setTalking", l), setSitting: on => call("setSitting", on),
+      setMove: (s, air) => call("setMove", s, air), setIdle: k => call("setIdle", k),
+      emote: n => api && api.emote(n), interact: () => api && api.interact(), pickup: () => api && api.pickup(),
+      tick: dt => { if (api) api.tick(dt); }
+    };
+    loadModular(THREE, L.model).then(M => {
+      const model = THREE.SkeletonUtils.clone(M.gltf.scene);
+      model.rotation.y = Math.PI;               // the packs face +Z; our world faces −Z
+      model.scale.setScalar(scale);
+      root.add(model);
+      const mat = modularMaterial(THREE, L);
+      model.traverse(o => { if (o.isMesh) { o.material = mat; o.castShadow = true; o.frustumCulled = false; } });
+      top = M.land.top || top;
+      setName(L.name, opts.role);
+      const byName = n => { const s = THREE.PropertyBinding.sanitizeNodeName(n); let b = null; model.traverse(o => { if (!b && (o.name === n || o.name === s)) b = o; }); return b; };
+      api = rig(THREE, root, model, M.clips, {
+        upperR: byName("UpperArm.R"), foreR: byName("LowerArm.R"), handR: byName("Wrist.R"),
+        upperL: byName("UpperArm.L"), foreL: byName("LowerArm.L"), handL: byName("Wrist.L"), head: byName("Head")
+      }, null, opts);
+      for (const [fn, args] of Object.entries(pending)) api[fn](...args);
+      root.userData.loaded = true;
+    }).catch(e => { root.userData.loaded = true; console.warn("character " + L.model + " failed to load", e); });
     return root;
+  }
+  // vertex colours, with the build's marker colours swapped for the chosen skin tone and hair colour
+  function modularMaterial(THREE, L) {
+    const A = window.Avatars;
+    const m = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.8, metalness: 0, skinning: true });
+    const u = { uSkin: { value: lin(THREE, (A.SKIN || {})[L.skin] || "#c98f62") }, uHair: { value: lin(THREE, (A.HAIR_COLOR || {})[L.hairColor] || "#1d1a19").multiplyScalar(1.3) } };
+    m.onBeforeCompile = shader => {
+      Object.assign(shader.uniforms, u);
+      shader.fragmentShader = "uniform vec3 uSkin, uHair;\n" + shader.fragmentShader.replace("#include <color_fragment>", `
+  #ifdef USE_COLOR
+    vec3 vc = vColor;
+    if (distance(vc, vec3(1.0, 0.0, 1.0)) < 0.1) vc = uSkin;
+    else if (distance(vc, vec3(0.5, 0.0, 0.5)) < 0.1) vc = uSkin * 0.8;
+    else if (distance(vc, vec3(0.0, 1.0, 1.0)) < 0.1) vc = uHair;
+    diffuseColor.rgb *= vc;
+  #endif`);
+    };
+    m.customProgramCacheKey = () => "katuro-modular";
+    return m;
+  }
+  const modCache = {};
+  function loadModular(THREE, id) {
+    if (!modCache[id]) {
+      modCache[id] = new Promise((ok, fail) => getLoader(THREE).then(loader => loader.load(`${BASE.base}mod-${id}.glb?v=${BASE.version}`, gltf => {
+        const clips = {};
+        gltf.animations.forEach(a => { clips[a.name] = a; });
+        let land = {};
+        gltf.scene.traverse(o => { if (o.userData && o.userData.land) land = o.userData.land; });
+        ok({ gltf, clips, land });
+      }, undefined, fail)));
+    }
+    return modCache[id];
   }
 
   // Skirt: an open cone skinned to the pelvis and both thighs, so it follows the legs when walking or sitting
@@ -536,5 +638,9 @@ uniform float uSkirt, uPolo, uSleeve, uNeck, uWaist, uKnee, uAnkle, uShoulderX, 
     return L.outfit === "blouse" || ["long", "ponytail", "bun"].includes(L.hair) ? "female" : "male";
   }
 
-  (typeof window !== "undefined" ? window : globalThis).Characters = { load, create, CLOTHES, EMOTES, bodyKind, ready: () => !!T };
+  (typeof window !== "undefined" ? window : globalThis).Characters = {
+    load, create, CLOTHES, EMOTES, bodyKind, ready: () => !!T,
+    models: () => MODULAR,                                   // [{ id, label, sex }] ready-made characters
+    preload: (THREE, id) => loadModular(THREE, id)            // warm the cache (e.g. the next one in the picker)
+  };
 })();

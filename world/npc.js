@@ -18,21 +18,25 @@ const STAFF = [
       ["Always wear your school ID — it's on your lanyard.", "Laging isuot ang iyong ID — nasa lanyard mo ito."],
       ["Press J to see your first-day tasks, and G to go anywhere quickly.", "Pindutin ang J para sa mga gawain, at G para pumunta kahit saan."],
       ["The flag ceremony is at the flag plaza. Can you raise the flag?", "Ang flag ceremony ay sa plasa. Kaya mo bang itaas ang watawat?"]] },
-  { id: "vendor", name: "Aling Nena", x: -49, z: -1.35, face: [0, 1], look: { body: "female", skin: "c", hair: "bun", hairColor: "brown", outfit: "vendor" },
+  { id: "vendor", name: "Aling Nena", x: -49, z: -1.35, face: [0, 1], look: { model: "w-casual", body: "female", skin: "c", hair: "bun", hairColor: "brown", outfit: "vendor" },
     lines: [["Ano'ng sa 'yo? The turon is fresh!", "Ano'ng sa 'yo? Bagong luto ang turon!"],
       ["You get ₱50 allowance a day. Spend it wisely!", "May ₱50 kang baon araw-araw. Gastusin nang tama!"],
       ["Press E at the counter to buy.", "Pindutin ang E sa counter para bumili."]] },
-  { id: "librarian", name: "Ms. Reyes", x: -47, z: -23.1, face: [0, 1], role: "teacher", look: { body: "female", skin: "b", hair: "long", hairColor: "black", outfit: "teacher" },
+  { id: "librarian", name: "Ms. Reyes", x: -47, z: -23.1, face: [0, 1], role: "teacher", look: { model: "w-formal", body: "female", skin: "b", hair: "long", hairColor: "black", outfit: "teacher" },
     lines: [["Shh… welcome to the library.", "Shh… maligayang pagdating sa silid-aklatan."],
       ["The shelves by the west wall have stories and science books. Press E there to read.", "May mga kuwento at aklat sa agham sa mga estante sa kanluran. Pindutin ang E para magbasa."]] },
-  { id: "principal", name: "Dr. Cruz", x: 11.5, z: -44.35, face: [0, 1], role: "teacher", look: { body: "male", skin: "c", hair: "short", hairColor: "gray", outfit: "teacher" }, quest: "principal",
+  { id: "principal", name: "Dr. Cruz", x: 11.5, z: -44.35, face: [0, 1], role: "teacher", look: { model: "m-suit", body: "male", skin: "c", hair: "short", hairColor: "gray", outfit: "teacher" }, quest: "principal",
     lines: [["Welcome to my office! I'm the principal of Katuro University.", "Maligayang pagdating! Ako ang punong-guro ng Katuro University."],
       ["Our school values are Excellence, Service and Bayanihan.", "Ang aming mga pagpapahalaga: Kahusayan, Paglilingkod at Bayanihan."],
       ["Finish your first-day tasks, and come back to tell me!", "Tapusin ang iyong mga gawain at bumalik ka rito!"]],
     after: [["You finished every task. Congratulations, and welcome to the family!", "Natapos mo lahat ng gawain. Binabati kita, at welcome sa pamilya!"]] },
-  { id: "gardener", name: "Mang Tonyo", x: -10.5, z: -33.6, face: [0, -1], look: { body: "male", skin: "e", hair: "short", hairColor: "gray", outfit: "pe" },
-    lines: [["This is our Gulayan sa Paaralan — tomatoes, eggplant and pechay.", "Ito ang Gulayan sa Paaralan — kamatis, talong at pechay."],
-      ["Help me water three beds. Walk up to a bed and press E.", "Tulungan mo akong diligan ang tatlong kama. Lumapit at pindutin ang E."]] },
+  { id: "gardener", name: "Mang Tonyo", x: -10.5, z: -33.6, face: [0, -1], look: { model: "m-farmer", body: "male", skin: "e", hair: "short", hairColor: "gray", outfit: "pe" },
+    lines: [["This is our Gulayan sa Paaralan — tomatoes, pechay, corn, kalabasa, carrots and watermelon.", "Ito ang Gulayan sa Paaralan — kamatis, pechay, mais, kalabasa, karot at pakwan."],
+      ["Help me water three beds. Walk up to a bed and press E — watch them grow!", "Tulungan mo akong diligan ang tatlong kama. Lumapit at pindutin ang E — panoorin silang lumaki!"]] },
+  { id: "maintenance", name: "Kuya Jun", x: 36.2, z: -14.5, face: [1, 0.4], look: { model: "m-worker", body: "male", skin: "d", hair: "buzz", hairColor: "black", outfit: "casual" },
+    lines: [["Magandang araw! I keep the court and the grounds clean.", "Magandang araw! Ako ang naglilinis ng court at ng bakuran."],
+      ["Remember: biodegradable in green, recyclable in blue, residual in red.", "Tandaan: nabubulok sa berde, nare-recycle sa asul, at iba pa sa pula."],
+      ["You can grab a basketball from the rack and play!", "Puwede kang kumuha ng bola sa lalagyan at maglaro!"]] },
   { id: "science", name: "Mr. Santos", x: 5, z: -22.9, face: [0, 1], role: "teacher", look: { body: "male", skin: "b", hair: "short", hairColor: "black", outfit: "teacher" }, quest: "lab",
     lines: [["Welcome to the Science Lab! Safety first: no running, and never taste anything.", "Maligayang pagdating sa laboratoryo! Kaligtasan muna: bawal tumakbo at tumikim."],
       ["Each bench has two microscopes. Next week we'll look at onion cells.", "May dalawang mikroskopyo ang bawat mesa. Sa susunod, titingnan natin ang selula ng sibuyas."]] }
@@ -44,7 +48,11 @@ const WALKERS = [
   { name: "Paolo", look: { body: "male", skin: "d", hair: "short", hairColor: "black", outfit: "polo", bag: true, bagColor: "#26292b" },
     path: [[-1, 50], [-1, 22], [-20, 1], [-36, 0.5], [-20, 1], [-1, 22]] },
   { name: "Kim", look: { body: "female", skin: "b", hair: "short", hairColor: "brown", outfit: "pe" },
-    path: [[33, 4], [42, -2], [50, -10], [62, -6], [50, 2], [42, 4]] }
+    path: [[33, 4], [42, -2], [50, -10], [62, -6], [50, 2], [42, 4]] },
+  { name: "Marco", look: { model: "m-hoodie", body: "male", skin: "c", hair: "short", hairColor: "black", outfit: "casual" },
+    path: [[-30, 10], [-22, 15], [-10, 19], [-22, 15]] },
+  { name: "Bea", look: { model: "w-casual", body: "female", skin: "a", hair: "long", hairColor: "black", outfit: "casual" },
+    path: [[-1.5, 60], [-1.5, 40], [1.5, 30], [1.5, 50]] }
 ];
 
 const make = (look, name, role) => {
@@ -63,7 +71,8 @@ for (const s of STAFF) {
   W.setBlocker("npc-" + s.id, [s.x - 0.25, s.z - 0.25, s.x + 0.25, s.z + 0.25, 0, 1.8]);
   W.interact.add({ x: s.x + s.face[0] * 0.8, z: s.z + s.face[1] * 0.8, r: 1.9, label: () => `${t("Talk")}: ${s.name}`, action: () => talk(p) });
 }
-for (const w of WALKERS) {
+// light avatars (Simple graphics / Low devices) are ~15 draw calls each: only the staff at their posts there
+for (const w of hd ? WALKERS : []) {
   const c = make(w.look, w.name);
   c.position.set(w.path[0][0], 0, w.path[0][1]);
   scene.add(c);
@@ -110,7 +119,7 @@ addEventListener("keydown", e => {
 }, true);
 
 // ---------------------------------------------------------------- per frame
-const NEAR = 30;   // staff work indoors or at posts: beyond this they're hidden and paused
+const NEAR = hd ? 30 : 20;   // staff work indoors or at posts: beyond this they're hidden and paused
 W.hooks.push(dt => {
   if (talking && Math.hypot(talking.x - me.x, talking.z - me.z) > 4) { talking.c.userData.setTalking(0); talking = null; box.hidden = true; }
   const cam = W.camera.position;

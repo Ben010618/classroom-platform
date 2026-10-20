@@ -355,7 +355,9 @@ Object.keys(spots).filter(k => k.startsWith("bed")).forEach(k => {
     const c = selfChar(); if (c) c.userData.interact();
     sfx("splash"); splash(s.x, s.z - 1.3);
     watered.add(k);
-    W.toast(`🌱 ${t("The plants look happy.")} (${Math.min(3, watered.size)}/3)`);
+    // real crops grow a stage each time they're watered (nature.js)
+    const grew = W.nature && W.nature.growBed ? W.nature.growBed(s.bed) : 0;
+    W.toast(`🌱 ${t("The plants look happy.")}${grew ? ` ⬆ ${grew}/4` : ""} (${Math.min(3, watered.size)}/3)`);
     if (watered.size >= 3) done("garden");
   } });
 });

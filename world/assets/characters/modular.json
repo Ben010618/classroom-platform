@@ -1,0 +1,82 @@
+[
+ {
+  "id": "m-casual",
+  "label": "Casual",
+  "sex": "men"
+ },
+ {
+  "id": "m-hoodie",
+  "label": "Hoodie",
+  "sex": "men"
+ },
+ {
+  "id": "m-suit",
+  "label": "Business suit",
+  "sex": "men"
+ },
+ {
+  "id": "m-farmer",
+  "label": "Farmer",
+  "sex": "men"
+ },
+ {
+  "id": "m-worker",
+  "label": "Worker",
+  "sex": "men"
+ },
+ {
+  "id": "m-beach",
+  "label": "Beach",
+  "sex": "men"
+ },
+ {
+  "id": "m-adventurer",
+  "label": "Adventurer",
+  "sex": "men"
+ },
+ {
+  "id": "m-astronaut",
+  "label": "Astronaut",
+  "sex": "men"
+ },
+ {
+  "id": "m-king",
+  "label": "King",
+  "sex": "men"
+ },
+ {
+  "id": "w-casual",
+  "label": "Casual",
+  "sex": "women"
+ },
+ {
+  "id": "w-formal",
+  "label": "Formal",
+  "sex": "women"
+ },
+ {
+  "id": "w-suit",
+  "label": "Business suit",
+  "sex": "women"
+ },
+ {
+  "id": "w-worker",
+  "label": "Worker",
+  "sex": "women"
+ },
+ {
+  "id": "w-adventurer",
+  "label": "Adventurer",
+  "sex": "women"
+ },
+ {
+  "id": "w-medieval",
+  "label": "Medieval",
+  "sex": "women"
+ },
+ {
+  "id": "w-witch",
+  "label": "Witch",
+  "sex": "women"
+ }
+]

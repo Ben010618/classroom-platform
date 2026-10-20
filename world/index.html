@@ -82,7 +82,17 @@
   .swatches { display: flex; gap: 6px; flex-wrap: wrap; }
   .swatch { width: 28px; height: 28px; border-radius: 50%; border: 2px solid transparent; cursor: pointer; padding: 0; }
   .swatch[aria-pressed="true"] { border-color: #fff; box-shadow: 0 0 0 2px var(--accent); }
-  #mp-preview { width: 100%; height: 300px; background: radial-gradient(circle at 50% 40%, #2a3a31, #121915); border-radius: 12px; display: block; }
+  .mp-form.ready-made .custom-only { display: none; }
+  #mp-preview { width: 100%; height: 300px; background: radial-gradient(circle at 50% 40%, #2a3a31, #121915); border-radius: 12px; display: block; cursor: grab; touch-action: none; }
+  #mp-preview:active { cursor: grabbing; }
+  .pv-col { display: flex; flex-direction: column; gap: 8px; min-width: 0; }
+  .pv-stage { position: relative; }
+  #pv-loading { position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); color: var(--muted); font-size: 13px; }
+  .pv-pick { display: grid; grid-template-columns: 40px 1fr 40px; gap: 6px; align-items: center; text-align: center; }
+  .pv-pick button { font-size: 20px; padding: 4px 0; }
+  .pv-pick b { display: block; font-size: 14px; }
+  .pv-pick small { color: var(--muted); font-size: 11px; }
+  .pv-hint { text-align: center; font-size: 11px; }
   .mp-actions { display: flex; gap: 8px; justify-content: flex-end; flex-wrap: wrap; }
   #mp-bar { pointer-events: auto; display: flex; gap: 6px; align-items: center; flex-wrap: wrap; }
   #mp-status { color: var(--muted); font-size: 12px; margin-right: 4px; }
@@ -93,7 +103,8 @@
   #mp-toast { position: fixed; left: 50%; bottom: 90px; transform: translateX(-50%); z-index: 7; }
   @media (max-width: 640px) {
     .mp-card { grid-template-columns: 1fr; }
-    #mp-preview { height: 200px; order: -1; }
+    #mp-preview { height: 220px; }
+    .pv-col { order: -1; }
     #mp-teacher-panel { top: auto; bottom: 120px; width: 190px; }
   }
   /* RPG action pad, folded behind one Actions button */
@@ -246,13 +257,13 @@
       <div><h2 id="mp-title">Join the class</h2><p>Everyone who uses the same class code meets in this school. Demo for up to about 8 people.</p></div>
       <label>Your name <input type="text" id="mp-name" maxlength="24" placeholder="First name or nickname" autocomplete="off"></label>
       <label>Class code <input type="text" id="mp-room" maxlength="40" autocomplete="off"></label>
-      <label>Body <select id="mp-body"></select></label>
+      <label class="custom-only">Body <select id="mp-body"></select></label>
       <label>Skin tone <span class="swatches" id="mp-skin"></span></label>
-      <label>Hairstyle <select id="mp-hair"></select></label>
+      <label class="custom-only">Hairstyle <select id="mp-hair"></select></label>
       <label>Hair colour <span class="swatches" id="mp-haircolor"></span></label>
-      <label>Outfit <select id="mp-outfit"></select></label>
-      <label class="check"><input type="checkbox" id="mp-bag" checked> Backpack</label>
-      <label id="mp-bagcolor-row">Backpack colour <span class="swatches" id="mp-bagcolor"></span></label>
+      <label class="custom-only">Outfit <select id="mp-outfit"></select></label>
+      <label class="check custom-only"><input type="checkbox" id="mp-bag" checked> Backpack</label>
+      <label id="mp-bagcolor-row" class="custom-only">Backpack colour <span class="swatches" id="mp-bagcolor"></span></label>
       <div id="mp-join-fields" class="mp-form">
         <label class="check"><input type="checkbox" id="mp-usemic" checked> Use my microphone</label>
         <label class="check"><input type="checkbox" id="mp-teacher"> I'm the teacher</label>
@@ -263,7 +274,18 @@
         <button type="button" class="primary" id="mp-join">Join</button>
       </div>
     </div>
-    <canvas id="mp-preview" aria-label="Preview of your avatar"></canvas>
+    <div class="pv-col">
+      <div class="pv-stage">
+        <canvas id="mp-preview" aria-label="Preview of your character (drag to turn)"></canvas>
+        <span id="pv-loading" hidden>Loading…</span>
+      </div>
+      <div class="pv-pick" id="pv-pick">
+        <button type="button" class="toggle" id="pv-prev" aria-label="Previous character">‹</button>
+        <div><b id="pv-name"></b><small id="pv-count"></small></div>
+        <button type="button" class="toggle" id="pv-next" aria-label="Next character">›</button>
+      </div>
+      <p class="muted pv-hint">Drag to turn</p>
+    </div>
   </div>
 </div>
 
@@ -285,11 +307,11 @@
 <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/utils/BufferGeometryUtils.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/GLTFLoader.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/RGBELoader.js"></script>
-<script src="world.js?v=202610201526-5710fc83b"></script>
-<script src="avatar.js?v=202610201526-5710fc83b"></script>
+<script src="world.js?v=202610202252-ecef72e0e"></script>
+<script src="avatar.js?v=202610202252-ecef72e0e"></script>
 <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/utils/SkeletonUtils.js"></script>
-<script src="character.js?v=202610201526-5710fc83b"></script>
-<script src="i18n.js?v=202610201526-5710fc83b"></script>
+<script src="character.js?v=202610202252-ecef72e0e"></script>
+<script src="i18n.js?v=202610202252-ecef72e0e"></script>
 
 <script>
 "use strict";
@@ -298,7 +320,7 @@
 // ============================================================================================
 (async function preview() {
   // Replaced with a build number by scripts/publish-pages.sh, so every release bypasses old cached files
-  const BUILD = "202610201526-5710fc83b";
+  const BUILD = "202610202252-ecef72e0e";
   const view = document.getElementById("view");
   const err = document.getElementById("err");
   if (!window.THREE || !THREE.BufferGeometryUtils) {
@@ -434,7 +456,7 @@
   });
   view.appendChild(renderer.domElement);
 
-  const { scene, colliders, places, markers, materials: M, props, signs, trees, ramps, doors, spots, areas, map } = buildWorld(THREE, { realFurniture: !simple });
+  const { scene, colliders, places, markers, materials: M, props, signs, trees, ramps, doors, spots, areas, map, nature, beds } = buildWorld(THREE, { realFurniture: !simple, realNature: !simple });
   scene.background = new THREE.Color(0xa9d3ef);
   scene.fog = new THREE.Fog(0xa9d3ef, 60, 150);
 
@@ -475,7 +497,8 @@
     // Instanced furniture can't be frustum-culled (the source bounds sit at the origin), so each set is hidden
     // when the camera is far from it: 35 desks + 35 chairs are ~38k triangles nobody sees from the gate.
     const furniture = [];
-    window.__hideFarFurniture = cam => { for (const f of furniture) f.inst.visible = Math.hypot(cam.x - f.x, cam.z - f.z) < f.r + 30; };
+    // within 10 m of the set: close enough to see in through a door or window
+    window.__hideFarFurniture = cam => { for (const f of furniture) f.inst.visible = Math.hypot(cam.x - f.x, cam.z - f.z) < f.r + 10; };
     for (const [kind, list] of Object.entries(byKind)) {
       const src = assets.models[kind];
       if (!src) continue;
@@ -801,7 +824,7 @@
   const indoorAreas = areas.filter(a => a.indoor).map(a => [a.x0, a.z0, a.x1, a.z1]);
   window.__world = { THREE, scene, camera, renderer, me, places, go, seats, pods, byName, device, onTick: null,
     keys, moveVec, colliders, collide, indoorAreas, build: BUILD, simple, materials: M, trees, signs, ramps,
-    doors, spots, areas, map, closePops: () => togglePop(null), area, markerViz, toast: showToast,
+    doors, spots, areas, map, nature, beds, closePops: () => togglePop(null), area, markerViz, toast: showToast,
     hooks: [],   // per-frame callbacks (dt, seconds) added by the modules
     mpHandlers: {},   // multiplayer event type → [fn(data, peerId, peer)]; W.mpSend(type, data) exists while in a class
     // Blockers: solid boxes added/removed at runtime (closed doors). player.js mirrors them into the physics world.
@@ -818,10 +841,11 @@
   requestAnimationFrame(frame);
 })();
 </script>
-<script type="module" src="multiplayer.js?v=202610201526-5710fc83b"></script>
-<script type="module" src="player.js?v=202610201526-5710fc83b"></script>
-<script type="module" src="env.js?v=202610201526-5710fc83b"></script>
-<script type="module" src="interact.js?v=202610201526-5710fc83b"></script>
-<script type="module" src="npc.js?v=202610201526-5710fc83b"></script>
-<script type="module" src="quests.js?v=202610201526-5710fc83b"></script>
-<script type="module" src="minimap.js?v=202610201526-5710fc83b"></script>
+<script type="module" src="multiplayer.js?v=202610202252-ecef72e0e"></script>
+<script type="module" src="player.js?v=202610202252-ecef72e0e"></script>
+<script type="module" src="env.js?v=202610202252-ecef72e0e"></script>
+<script type="module" src="nature.js?v=202610202252-ecef72e0e"></script>
+<script type="module" src="interact.js?v=202610202252-ecef72e0e"></script>
+<script type="module" src="npc.js?v=202610202252-ecef72e0e"></script>
+<script type="module" src="quests.js?v=202610202252-ecef72e0e"></script>
+<script type="module" src="minimap.js?v=202610202252-ecef72e0e"></script>
