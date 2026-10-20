@@ -12,6 +12,10 @@
   const ramps = []; // { x0, x1, z0, z1, y0, y1 }: hidden slopes over stairs, rising toward +x (physics only)
   const trees = []; // { x, z, r } for soft ground shadows in the preview
   const signs = []; // { lines | flag, x, y, z, ry, w, h, bg, fg } — painted as panels by the preview
+  const doors = []; // { x, z, w, h, axis: "x" | "z" }: door openings that get a swinging door leaf in the preview
+  const spots = {}; // name → { x, y, z, r, ...}: things you can use with E in the preview (board, shelf, bell, …)
+  const areas = []; // { x0, z0, x1, z1, label, indoor }: named areas, first match wins (preview HUD, mini-map, tasks)
+  const map = [];   // { x0, z0, x1, z1, kind }: footprints drawn on the mini-map (building, path, court, garden, plaza)
   const scene = new THREE.Scene();
   scene.name = "KaturoUniversity";
   const colliders = []; // axis-aligned boxes: [x0, z0, x1, z1, y0, y1] (the simple walker uses only x/z)
@@ -57,6 +61,17 @@
   mat("binGreen", 0x2e8b57);       // biodegradable
   mat("binBlue", 0x2f6fb3);        // recyclable
   mat("binRed", 0xc0392b);         // residual
+  // New things reuse existing colours: every material is one more draw call on every frame
+  const ALIAS = {};
+  const alias = (name, existing) => { ALIAS[name] = existing; };
+  alias("ceramic", "clockFace");   // toilets, sinks
+  alias("tomato", "binRed");
+  alias("eggplant", "dark");
+  alias("labTop", "dark");
+  alias("screenOn", "lamp");       // computer monitors glow
+  alias("ball", "pot");
+  alias("brass", "paperA");
+  alias("waterBlue", "paperB");
 
   // Texture tiling (metres per texture repeat) for surfaces that get real textures in the preview.
   const TILE = { leaf: 2, leaf2: 2, floor: 1.2, wall: 2.4, ceiling: 2.4, roof: 2.5, concrete: 3, path: 3, grass: 5, grassDark: 5, court: 4, wood: 1.2, podium: 1.2, pod: 1.2 };
@@ -78,6 +93,7 @@
   }
   const tmp = new THREE.Object3D();
   function put(matName, geo, x, y, z, ry = 0, rx = 0, rz = 0) {
+    matName = ALIAS[matName] || matName;
     let g = geo.index ? geo.toNonIndexed() : geo;
     tmp.position.set(x, y, z);
     tmp.rotation.set(rx, ry, rz);
@@ -183,19 +199,17 @@
     else { backOps.push(win(a + 2, a + 6)); backOps.push(win(a + 8, a + 12)); }
   }
   wallX("wall", B.z0, B.x0, B.x1, B.h, B.t, backOps);
-  // front (south) wall on the veranda: a door + windows per room. Only Room 1's door is open.
+  // front (south) wall on the veranda: a door + windows per room (the preview hangs a door leaf you can open)
   const frontOps = [];
   for (let r = 0; r < 4; r++) {
     const a = rooms[r];
     frontOps.push(door(a + 11, a + 12.6));
     frontOps.push(win(a + 1.5, a + 5.5));
     frontOps.push(win(a + 6.5, a + 10));
+    doors.push({ x: a + 11.8, z: B.z1, w: 1.6, h: 2.2, axis: "x", open: r === 0 });
   }
   wallX("wall", B.z1, B.x0, B.x1, B.h, B.t, frontOps);
-  for (let r = 1; r < 4; r++) {   // closed doors of rooms 2–4
-    const a = rooms[r];
-    box("trim", a + 11.8, 0, B.z1, 1.6, 2.2, B.t + 0.06, 0, true);
-  }
+  map.push({ x0: B.x0, z0: B.z0, x1: B.x1, z1: B.z1, kind: "building" }, { x0: B.x0, z0: B.z1, x1: B.x1, z1: -3, kind: "plaza" });
   // side walls and room partitions (Room 1 west wall has windows)
   wallZ("wall", B.x0, B.z0, B.z1, B.h, B.t, [win(-23, -18), win(-15, -10)]);
   wallZ("wall", B.x1, B.z0, B.z1, B.h, B.t);
@@ -316,6 +330,74 @@
   const screen = marker("screen", cx, 1.75, B.z0 + 0.25, 0, { "media-frame": { bounds: { x: 4.8, y: 2.7, z: 0.3 }, mediaType: "all-2d", snapToCenter: true } });
   screen.userData.preview = "screen";
   marker("classroom-1", -17.9, 0, -7.0, 0.28, gotoWaypoint);
+  spots.board = { x: cx, y: 1.7, z: B.z0 + 0.6, r: 3.2, w: 5.6, h: 1.4, boardZ: B.z0 + 0.23 };   // write on the chalkboard / show slides
+  spots.lectern = { x: cx, y: 1.1, z: -23.1, r: 1.6 };
+  waterDispenser(-16.75, -7.6, -Math.PI / 2, "dispenser1");
+
+  // ============================== ROOMS 2–4 (simpler interiors: box furniture, no extra draw calls) ==============================
+  function roomBasics(a, title, sub) {
+    const mid = a + 7;
+    box("board", mid, 0.9, B.z0 + 0.16, 4.5, 1.4, 0.08);
+    box("trim", mid, 0.86, B.z0 + 0.2, 4.7, 0.06, 0.14);
+    signs.push({ lines: [title, sub], x: mid, y: 1.6, z: B.z0 + 0.22, ry: 0, w: 4.2, h: 1.1, bg: "#2b5a40", fg: "#e9efe6" });
+    signs.push({ lines: [title], x: a + 11.8, y: 2.45, z: B.z1 + 0.15, ry: 0, w: 1.9, h: 0.35, bg: "#2f6b4f", fg: "#f3efe6" });
+    for (const lx of [a + 3.5, a + 7, a + 10.5]) for (const lz of [-21, -15, -9.5]) {
+      box("metal", lx, B.h - 0.12, lz, 0.22, 0.05, 1.3);
+      box("lamp", lx, B.h - 0.16, lz, 0.08, 0.04, 1.2);
+    }
+  }
+  function boxDesk(x, z) {   // learner desk + chair facing −Z
+    box("wood", x, 0.72, z - 0.35, 0.95, 0.04, 0.5);
+    for (const [dx, dz] of [[-0.42, -0.57], [0.42, -0.57], [-0.42, -0.13], [0.42, -0.13]]) box("metal", x + dx, 0, z + dz, 0.04, 0.72, 0.04);
+    box("wood", x, 0.44, z + 0.15, 0.42, 0.04, 0.4);
+    box("wood", x, 0.48, z + 0.36, 0.42, 0.42, 0.04);
+    for (const [dx, dz] of [[-0.18, -0.03], [0.18, -0.03], [-0.18, 0.33], [0.18, 0.33]]) box("metal", x + dx, 0, z + dz, 0.035, 0.44, 0.035);
+    colliders.push([x - 0.48, z - 0.62, x + 0.48, z - 0.1, 0, 0.76]);
+  }
+  // Room 2: a regular classroom (Grade 8)
+  roomBasics(-16, "Grade 8 – Sampaguita", "Ikawalong Baitang");
+  for (const z of [-20, -17.6, -15.2, -12.8]) for (const x of [-13.6, -11.6, -9.6, -7.6, -5.6]) boxDesk(x, z);
+  box("wood", -9, 0, -23.6, 1.6, 0.76, 0.8, 0, true);                 // teacher's table
+  waterDispenser(-2.75, -7.6, Math.PI / 2, "dispenser2");
+  // Room 3: Science laboratory — black-top lab benches with stools, a sink counter, a fume cupboard
+  roomBasics(-2, "Science Laboratory", "Laboratoryo ng Agham");
+  for (const z of [-19.5, -15.5, -11.5]) for (const x of [2, 8]) {
+    box("wood", x, 0, z, 3.2, 0.86, 1.1, 0, true);
+    box("labTop", x, 0.86, z, 3.3, 0.04, 1.2);
+    for (const dx of [-1.1, 0, 1.1]) { cyl("metal", x + dx, 0, z + 0.95, 0.03, 0.6, 6); cyl("wood", x + dx, 0.6, z + 0.95, 0.17, 0.04, 8); }
+    box("dark", x - 0.6, 0.9, z - 0.2, 0.12, 0.3, 0.12);              // microscopes
+    box("dark", x + 0.6, 0.9, z - 0.2, 0.12, 0.3, 0.12);
+    cyl("glass", x, 0.9, z + 0.2, 0.06, 0.18, 8);                    // beaker
+  }
+  box("wood", 5, 0, -25.4, 8, 0.9, 0.7, 0, true);                      // sink counter along the back wall
+  box("labTop", 5, 0.9, -25.4, 8.1, 0.04, 0.75);
+  for (const sx of [2.5, 5, 7.5]) { box("ceramic", sx, 0.88, -25.4, 0.6, 0.06, 0.45); box("metal", sx, 0.94, -25.65, 0.04, 0.25, 0.04); }
+  box("glass", 10.6, 0, -24.8, 1.6, 2.2, 1.0, 0, true);                // fume cupboard
+  signs.push({ lines: ["Safety first!", "Wear goggles · Huwag tikman"], x: 11.86, y: 1.8, z: -16, ry: -Math.PI / 2, w: 2.6, h: 0.8, bg: "#f3efe6", fg: "#8a2d22" });
+  // Room 4: ICT room — computer tables along the walls and an island in the middle
+  roomBasics(12, "ICT Room", "Silid ng Kompyuter");
+  const pc = (x, z, ry) => {
+    const s = Math.sin(ry), c = Math.cos(ry);
+    box("dark", x + s * 0.12, 0.76, z + c * 0.12, 0.5, 0.36, 0.05, ry);   // monitor
+    box("screenOn", x + s * 0.09, 0.79, z + c * 0.09, 0.44, 0.3, 0.01, ry);
+    box("dark", x - s * 0.15, 0.76, z - c * 0.15, 0.42, 0.02, 0.15, ry); // keyboard
+  };
+  for (const z of [-21, -18.5, -16, -13.5, -11]) {
+    box("wood", 13, 0, z, 0.8, 0.75, 2.2, 0, true); pc(13.1, z - 0.5, -Math.PI / 2); pc(13.1, z + 0.5, -Math.PI / 2);
+    box("wood", 25, 0, z, 0.8, 0.75, 2.2, 0, true); pc(24.9, z - 0.5, Math.PI / 2); pc(24.9, z + 0.5, Math.PI / 2);
+  }
+  box("wood", 19, 0, -15, 2.2, 0.75, 6, 0, true);
+  for (const z of [-17, -15, -13]) { pc(18.4, z, -Math.PI / 2); pc(19.6, z, Math.PI / 2); }
+  marker("room-2", -4.1, 0, -7.2, 0, gotoWaypoint);
+  marker("science-lab", 9.9, 0, -7.2, 0, gotoWaypoint);
+  marker("ict-room", 23.9, 0, -7.2, 0, gotoWaypoint);
+
+  function waterDispenser(x, z, ry, name) {
+    box("ceramic", x, 0, z, 0.36, 1.0, 0.36, ry, true);
+    cyl("waterBlue", x, 1.0, z, 0.15, 0.42, 10, 0.13);
+    box("dark", x, 0.75, z, 0.38, 0.08, 0.38, ry);
+    spots[name] = { x, y: 1, z, r: 1.4 };
+  }
 
   // ============================== FLAG PLAZA ==============================
   box("concrete", 0, 0, 10, 8, 0.25, 8);                                // raised flag platform
@@ -323,6 +405,13 @@
   box("flag", 0.75, 7.8, 10, 1.5, 0.9, 0.03);                            // flag (the preview paints the Philippine flag on it)
   signs.push({ flag: "ph", x: 0.75, y: 8.25, z: 10.02, ry: 0, w: 1.5, h: 0.75 });
   signs.push({ flag: "ph", x: 0.75, y: 8.25, z: 9.98, ry: Math.PI, w: 1.5, h: 0.75 });
+  spots.flag = { x: 0, y: 1.2, z: 10.6, r: 2.6, top: 8.25, bottom: 1.4 };
+  map.push({ x0: -4, z0: 6, x1: 4, z1: 14, kind: "plaza" });
+  // School bell on a post by the veranda (ring it with E)
+  box("metal", 30.2, 0, -2.6, 0.12, 2.6, 0.12, 0, true);
+  box("metal", 30.2, 2.5, -2.35, 0.06, 0.06, 0.5);
+  cyl("brass", 30.2, 2.12, -2.1, 0.17, 0.3, 12, 0.07);
+  spots.bell = { x: 30.2, y: 2.2, z: -2.1, r: 2.2 };
 
   // ============================== STAGE (programmes, speeches) ==============================
   const S = { x: 24, z: 6 };
@@ -334,11 +423,13 @@
   for (const pz of [S.z - 4.4, S.z + 4.4]) box("metal", S.x - 2.6, 1.0, pz, 0.2, 3.4, 0.2);
   box("roof", S.x, 4.4, S.z, 6.2, 0.18, 10);
   signs.push({ lines: ["Katuro Stage", "Entablado"], x: S.x + 2.36, y: 3.2, z: S.z, ry: -Math.PI / 2, w: 5, h: 0.9, bg: "#2f6b4f", fg: "#f3efe6" });
+  map.push({ x0: S.x - 2.75, z0: S.z - 4.5, x1: S.x + 2.75, z1: S.z + 4.5, kind: "building" });
+  spots.stage = { x: S.x - 0.5, y: 1.6, z: S.z, r: 2.5 };
 
   // ============================== CANTEEN + LIBRARY (west side) ==============================
   function smallBuilding(x0, z0, w, d, name, sub) {
     const h = 3.4, x1 = x0 + w, z1 = z0 + d;
-    box("concrete", (x0 + x1) / 2, 0, (z0 + z1) / 2, w + 2, 0.08, d + 2);
+    box("concrete", (x0 + x1) / 2, 0, (z0 + z1) / 2, w + 2, 0.04, d + 2);   // apron: lower than the 6 cm indoor floor
     wallX("wall", z0, x0, x1, h, 0.25, [win(x0 + 1.5, x0 + 4), win(x1 - 4, x1 - 1.5)]);
     wallX("wall", z1, x0, x1, h, 0.25, [door(x0 + w / 2 - 0.9, x0 + w / 2 + 0.9), win(x0 + 1, x0 + w / 2 - 1.6), win(x0 + w / 2 + 1.6, x1 - 1)]);
     wallZ("wall", x0, z0, z1, h, 0.25, [win(z0 + 1.5, z1 - 1.5)]);
@@ -354,14 +445,25 @@
     box("roof", (x0 + x1) / 2, h, (z0 + z1) / 2 + 0.6, w + 1.6, 0.22, d + 2.4);
     box("trim", (x0 + x1) / 2, h - 0.3, z1 + 1.8, w + 1.6, 0.5, 0.12);
     signs.push({ lines: [name, sub], x: (x0 + x1) / 2, y: 2.75, z: z1 + 0.15, ry: 0, w: Math.min(6, w - 2), h: 0.6, bg: "#2f6b4f", fg: "#f3efe6" });
+    doors.push({ x: x0 + w / 2, z: z1, w: 1.8, h: 2.2, axis: "x", open: true });
+    map.push({ x0, z0, x1, z1, kind: "building" });
   }
   smallBuilding(-56, -4, 14, 9, "CANTEEN", "Kantina");
   box("wood", -49, 0, -0.5, 8, 1.0, 0.6, 0, true);                       // serving counter
   for (const tx of [-53, -45]) { box("wood", tx, 0.72, 2.3, 1.8, 0.05, 0.9); box("metal", tx, 0, 2.3, 0.08, 0.72, 0.08); }
+  // snacks on the counter: turon, banana cue, pandesal basket
+  for (let k = 0; k < 6; k++) put(k % 2 ? "wood" : "trunk", new THREE.CylinderGeometry(0.03, 0.03, 0.22, 6), -52 + k * 0.35, 1.04, -0.5, 0, 0, Math.PI / 2);
+  cyl("cork", -47.5, 1.0, -0.5, 0.22, 0.12, 10, 0.26);
+  spots.canteen = { x: -49, y: 1.2, z: 0.4, r: 2.2 };
+  waterDispenser(-55.4, 3.8, Math.PI / 2, "dispenser3");
   smallBuilding(-56, -24, 14, 10, "LIBRARY", "Silid-aklatan");
   props.push({ kind: "shelf", x: -55.6, y: 0, z: -20, ry: Math.PI / 2 }, { kind: "shelf", x: -55.6, y: 0, z: -18.9, ry: Math.PI / 2 }, { kind: "shelf", x: -55.6, y: 0, z: -17.8, ry: Math.PI / 2 });
   box("wood", -49, 0.74, -19, 3, 0.05, 1.2);
   box("metal", -49, 0, -19, 0.1, 0.74, 0.1);
+  box("wood", -47, 0, -22.4, 2.4, 0.8, 0.7, 0, true);                    // librarian's desk
+  box("paperA", -47.4, 0.8, -22.4, 0.3, 0.06, 0.22);
+  spots.shelf = { x: -54.6, y: 1.2, z: -18.9, r: 2.2 };
+  spots.librarian = { x: -47, y: 1.5, z: -21.4, r: 2.0 };
   box("path", -40, 0, 0.5, 14, 0.03, 3);    // walkway plaza → canteen
   box("path", -40, 0, -13, 3, 0.03, 26);    // walkway canteen → library
   for (let i = -1; i <= 1; i++) box("wood", i * 3.5, 0, 17, 2.4, 0.45, 0.5);   // benches facing the flag
@@ -384,6 +486,13 @@
   box("roof", C.x, 7, C.z, 33, 0.3, 23);
   box("trim", C.x, 6.7, C.z - 11.5, 33, 0.4, 0.15);
   box("trim", C.x, 6.7, C.z + 11.5, 33, 0.4, 0.15);
+  map.push({ x0: C.x - C.w / 2 - 1, z0: C.z - C.d / 2 - 1, x1: C.x + C.w / 2 + 1, z1: C.z + C.d / 2 + 1, kind: "court" });
+  // sports equipment: a ball rack, loose balls and training cones
+  box("metal", C.x - 13, 0, C.z + 9.6, 1.4, 0.9, 0.5, 0, true);
+  for (let k = 0; k < 4; k++) put("ball", new THREE.IcosahedronGeometry(0.12, 1), C.x - 13.5 + k * 0.33, 0.98, C.z + 9.6);
+  for (const [bx, bz] of [[C.x - 4, C.z + 2], [C.x + 6, C.z - 3.5], [C.x + 1, C.z + 5.5]]) put("ball", new THREE.IcosahedronGeometry(0.12, 1), bx, 0.12, bz);
+  for (let k = 0; k < 6; k++) put("binRed", new THREE.ConeGeometry(0.12, 0.3, 8), C.x - 8 + k * 1.6, 0.15, C.z - 6);
+  spots.court = { x: C.x - 13, y: 1.1, z: C.z + 9, r: 2 };
 
   // ============================== TREES ==============================
   const treeSpots = [];
@@ -448,16 +557,91 @@
     const bx = G.x - 7.5 + (bi % 3) * 7.5, bz = G.z - 2.6 + Math.floor(bi / 3) * 5.2;
     box("wood", bx, 0, bz, 5.6, 0.32, 2.2, 0, true);           // raised bed frame
     box("soil", bx, 0.3, bz, 5.3, 0.05, 1.9);
+    // growth stages per bed: seedlings, young plants, then fruiting tomatoes / eggplants
+    const stage = bi % 3;
     for (let row = 0; row < 3; row++) {
       for (let k = 0; k < 7; k++) {
         const px = bx - 2.3 + k * 0.76, pz = bz - 0.6 + row * 0.6;
-        const g = bi % 2 ? new THREE.ConeGeometry(0.16, 0.42, 5) : new THREE.IcosahedronGeometry(0.17, 0);
-        put("plant", g, px, 0.52 + (bi % 2 ? 0 : -0.05), pz, k + row);
+        const sz = [0.45, 0.75, 1.0][stage] * (0.85 + ((k * 7 + row * 3) % 5) * 0.06);
+        const g = bi % 2 ? new THREE.ConeGeometry(0.16 * sz, 0.42 * sz, 5) : new THREE.IcosahedronGeometry(0.17 * sz, 0);
+        put("plant", g, px, 0.35 + 0.17 * sz + (bi % 2 ? 0.04 : -0.02), pz, k + row);
+        if (stage === 2 && (k + row) % 2 === 0) {
+          if (bi < 3) put("tomato", new THREE.IcosahedronGeometry(0.045, 1), px + 0.08, 0.5, pz + 0.07);
+          else put("eggplant", new THREE.CylinderGeometry(0.035, 0.045, 0.16, 6), px + 0.09, 0.45, pz + 0.06, 0, 0.3, 0.4);
+        }
       }
     }
+    spots["bed" + bi] = { x: bx, y: 0.6, z: bz + 1.4, r: 1.8 };
   }
+  // watering can by the garden sign
+  cyl("waterBlue", G.x + 2.6, 0, G.z + 5.4, 0.13, 0.26, 10, 0.11);
+  box("waterBlue", G.x + 2.8, 0.15, G.z + 5.4, 0.22, 0.04, 0.04, 0, 0);
   box("path", G.x, 0, G.z, 24, 0.03, 1.4);
   box("path", G.x, 0, -31, 3, 0.03, 8);
+  map.push({ x0: G.x - 11, z0: G.z - 4, x1: G.x + 11, z1: G.z + 4, kind: "garden" });
+
+  // ============================== ADMINISTRATION: principal's office + comfort rooms ==============================
+  // Behind the school on the east side; reached by the walkway along the school's east wall.
+  {
+    const x0 = 8, z0 = -46, w = 20, d = 10, x1 = x0 + w, z1 = z0 + d, h = 3.4;
+    box("concrete", (x0 + x1) / 2, 0, (z0 + z1) / 2, w + 2, 0.04, d + 2);
+    wallX("wall", z0, x0, x1, h, 0.25, [win(x0 + 2, x0 + 5), win(x1 - 5, x1 - 2)]);
+    // front: lobby door in the middle
+    wallX("wall", z1, x0, x1, h, 0.25, [door(17.1, 18.9), win(x0 + 2, x0 + 6), win(x1 - 6, x1 - 2)]);
+    wallZ("wall", x0, z0, z1, h, 0.25, [win(z0 + 3, z1 - 3)]);
+    wallZ("wall", x1, z0, z1, h, 0.25, [win(z0 + 3, z1 - 3)]);
+    jalousie(x0 + 3.5, 1.0, 2.3, z0, 3, false); jalousie(x1 - 3.5, 1.0, 2.3, z0, 3, false);
+    jalousie(x0 + 4, 1.0, 2.3, z1, 4, false); jalousie(x1 - 4, 1.0, 2.3, z1, 4, false);
+    jalousie(x0, 1.0, 2.3, (z0 + z1) / 2, d - 6, true); jalousie(x1, 1.0, 2.3, (z0 + z1) / 2, d - 6, true);
+    // inner walls: office (west) | lobby | comfort rooms (east, split into boys and girls)
+    wallZ("wall", 15, z0, z1, h, 0.2, [door(-40.5, -39)]);
+    wallZ("wall", 21, z0, z1, h, 0.2, [door(-44.5, -43.2), door(-39.3, -38)]);
+    wallX("wall", -41, 21, x1, h, 0.2);
+    doors.push({ x: 18, z: z1, w: 1.8, h: 2.2, axis: "x", open: true }, { x: 15, z: -39.75, w: 1.5, h: 2.2, axis: "z", open: false });
+    box("floor", (x0 + x1) / 2, 0, (z0 + z1) / 2, w, 0.06, d);
+    box("ceiling", (x0 + x1) / 2, h - 0.06, (z0 + z1) / 2, w, 0.05, d);
+    box("roof", (x0 + x1) / 2, h, (z0 + z1) / 2 + 0.6, w + 1.6, 0.22, d + 2.4);
+    box("trim", (x0 + x1) / 2, h - 0.3, z1 + 1.8, w + 1.6, 0.5, 0.12);
+    for (const lx of [11.5, 18, 24.5]) { box("metal", lx, h - 0.12, -41, 0.22, 0.05, 1.3); box("lamp", lx, h - 0.16, -41, 0.08, 0.04, 1.2); }
+    signs.push({ lines: ["ADMINISTRATION", "Tanggapan"], x: 18, y: 2.75, z: z1 + 0.15, ry: 0, w: 5, h: 0.6, bg: "#2f6b4f", fg: "#f3efe6" });
+    // principal's office
+    box("wood", 11.5, 0, -43.2, 2.2, 0.78, 1.0, 0, true);                // desk
+    box("dark", 11.5, 0.78, -43.4, 0.5, 0.32, 0.04);                     // nameplate + monitor
+    box("paperA", 11.0, 0.78, -42.95, 0.35, 0.03, 0.25);
+    box("metal", 11.5, 0, -44.4, 0.55, 1.1, 0.55, 0, true);               // principal's chair
+    for (const vx of [10.7, 12.3]) box("wood", vx, 0, -41.7, 0.5, 0.48, 0.5, 0, true);   // visitor chairs
+    box("metal", 8.5, 0, -38, 0.5, 1.4, 0.9, 0, true);                   // filing cabinet
+    box("wood", 14.3, 0, -45.2, 1.0, 2.0, 0.45, 0, true);                // trophy shelf
+    for (const ty of [0.7, 1.3]) for (const tx of [13.95, 14.3, 14.65]) cyl("brass", tx, ty, -45.1, 0.06, 0.22, 8, 0.03);
+    cyl("metal", 9, 0, -45.3, 0.025, 2.0, 6);                            // small flag stand
+    signs.push({ flag: "ph", x: 9.35, y: 1.75, z: -45.3, ry: 0, w: 0.7, h: 0.35 });
+    signs.push({ lines: ["Principal's Office", "Tanggapan ng Punong-guro"], x: 15.11, y: 2.4, z: -39.75, ry: Math.PI / 2, w: 1.8, h: 0.45, bg: "#2f6b4f", fg: "#f3efe6" });
+    signs.push({ lines: ["Excellence · Service · Bayanihan"], x: 11.5, y: 2.2, z: z0 + 0.14, ry: 0, w: 4, h: 0.4, bg: "#f3efe6", fg: "#2f6b4f" });
+    spots.principal = { x: 11.5, y: 1.5, z: -44.2, r: 2.4 };
+    // lobby: bench and notice board
+    box("wood", 18, 0, -45.3, 2.4, 0.45, 0.5, 0, true);
+    box("cork", 18, 1.0, z0 + 0.15, 3, 1.1, 0.04);
+    // comfort rooms: stalls with toilets, a sink counter with a mirror
+    signs.push({ lines: ["BOYS · LALAKI"], x: 21.11, y: 2.4, z: -43.85, ry: Math.PI / 2, w: 1.3, h: 0.3, bg: "#2f6fb3", fg: "#ffffff" });
+    signs.push({ lines: ["GIRLS · BABAE"], x: 21.11, y: 2.4, z: -38.65, ry: Math.PI / 2, w: 1.3, h: 0.3, bg: "#c0392b", fg: "#ffffff" });
+    for (const [zs, zw, s] of [[-46, -41, -1], [-41, -36, 1]]) {   // s: which side the outer wall is on
+      const mid = (zs + zw) / 2;
+      for (let k = 0; k < 3; k++) {
+        const sx = 23.6 + k * 1.4;
+        box("trim", sx + 0.7, 0.1, mid + s * 0.9, 0.04, 1.8, 2.6);          // stall partitions
+        box("ceramic", sx, 0, mid + s * 2.1, 0.4, 0.42, 0.55, 0, true);     // toilet against the outer wall
+      }
+      box("ceramic", 27.6, 0.8, mid - s * 1.2, 0.5, 0.12, 1.6);           // sink counter
+      box("glass", 27.86, 1.3, mid - s * 1.2, 0.02, 0.8, 1.4);             // mirror
+    }
+    map.push({ x0, z0, x1, z1, kind: "building" });
+    spots.cr = { x: 24.5, y: 1, z: -41, r: 3 };
+  }
+  // walkways: along the school's east wall to the administration building
+  box("path", 28.2, 0, -19, 2.2, 0.03, 31);
+  box("path", 18, 0, -34.6, 22, 0.03, 2);
+  box("path", 18, 0, -35.5, 2.2, 0.03, 1.2);
+  map.push({ x0: 27.1, z0: -34.5, x1: 29.3, z1: -3.5, kind: "path" }, { x0: 7, z0: -35.6, x1: 29, z1: -33.6, kind: "path" });
   signs.push({ lines: ["GULAYAN SA PAARALAN", "School Vegetable Garden"], x: G.x, y: 1.3, z: G.z + 6, ry: 0, w: 4.2, h: 0.8, bg: "#2f6b4f", fg: "#f3efe6" });
   box("metal", G.x - 1.9, 0, G.z + 5.96, 0.08, 1.7, 0.08);
   box("metal", G.x + 1.9, 0, G.z + 5.96, 0.08, 1.7, 0.08);
@@ -502,11 +686,38 @@
     plaza: { x: 0, z: 22, yaw: 0, label: "Flag plaza" },
     classroom: { x: -17.9, z: -7.0, yaw: 0.28, label: "Classroom 1" },
     podium: { x: cx, z: -22.8, yaw: Math.PI, label: "Podium" },
+    room2: { x: -4.1, z: -7.2, yaw: 0.3, label: "Grade 8 room" },
+    lab: { x: 9.9, z: -7.2, yaw: 0.3, label: "Science Lab" },
+    ict: { x: 23.9, z: -7.2, yaw: 0.3, label: "ICT Room" },
     court: { x: C.x - 17.5, z: C.z + 3, yaw: -Math.PI / 2 + 0.12, label: "Covered court" },
     stage: { x: 12, z: 6, yaw: -Math.PI / 2, label: "Stage" },
     canteen: { x: -46, z: 14, yaw: 0.25, label: "Canteen" },
     library: { x: -45, z: -6.5, yaw: 0.3, label: "Library" },
-    garden: { x: -6, z: -30.5, yaw: 0, label: "Vegetable garden" }
+    garden: { x: -6, z: -30.5, yaw: 0, label: "Vegetable garden" },
+    admin: { x: 18, z: -33.4, yaw: 0, label: "Principal's office" }
   };
-  return { scene, colliders, places, markers, materials: M, props, signs, trees, ramps };
+  // Named areas, most specific first
+  areas.push(
+    { x0: -30, z0: -26, x1: -16, z1: -21, label: "Podium", indoor: true },
+    { x0: -30, z0: -26, x1: -16, z1: -6, label: "Classroom 1", indoor: true },
+    { x0: -16, z0: -26, x1: -2, z1: -6, label: "Grade 8 room", indoor: true },
+    { x0: -2, z0: -26, x1: 12, z1: -6, label: "Science Lab", indoor: true },
+    { x0: 12, z0: -26, x1: 26, z1: -6, label: "ICT Room", indoor: true },
+    { x0: 8, z0: -46, x1: 15, z1: -36, label: "Principal's office", indoor: true },
+    { x0: 21, z0: -46, x1: 28, z1: -36, label: "Comfort rooms", indoor: true },
+    { x0: 15, z0: -46, x1: 21, z1: -36, label: "Administration", indoor: true },
+    { x0: -56, z0: -4, x1: -42, z1: 5, label: "Canteen", indoor: true },
+    { x0: -56, z0: -24, x1: -42, z1: -14, label: "Library", indoor: true },
+    { x0: 33, z0: -18, x1: 70, z1: 8, label: "Covered court" },
+    { x0: 8, z0: 0, x1: 28, z1: 12, label: "Stage" },
+    { x0: -20, z0: -45, x1: 8, z1: -27, label: "Vegetable garden" },
+    { x0: -70, z0: 60, x1: 70, z1: 72, label: "Main gate" },
+    { x0: -34, z0: -3, x1: 34, z1: 24, label: "Flag plaza" },
+    { x0: -30, z0: -6, x1: 26, z1: -3, label: "Veranda" }
+  );
+  map.push({ x0: -2.5, z0: 11, x1: 2.5, z1: 69, kind: "path" }, { x0: 30, z0: 2, x1: 42, z1: 6, kind: "path" },
+    { x0: -47, z0: -1, x1: -33, z1: 2, kind: "path" }, { x0: -41.5, z0: -26, x1: -38.5, z1: 0, kind: "path" },
+    { x0: -18, z0: -38.7, x1: 6, z1: -37.3, kind: "path" }, { x0: -7.5, z0: -35, x1: -4.5, z1: -27, kind: "path" },
+    { x0: -35, z0: -3, x1: 31, z1: 11, kind: "plaza" });
+  return { scene, colliders, places, markers, materials: M, props, signs, trees, ramps, doors, spots, areas, map };
 };

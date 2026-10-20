@@ -27,7 +27,22 @@
   .card { pointer-events: auto; background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 8px 10px; backdrop-filter: blur(6px); }
   .title b { font-size: 15px; display: block; }
   .title span { color: var(--muted); font-size: 12px; }
-  .go { display: flex; flex-wrap: wrap; gap: 6px; }
+  /* compact top-left dock: Menu, Go to, current place; everything else lives in pop-up panels */
+  .dock { pointer-events: auto; display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+  .icon-btn { font: 600 13px var(--ui); color: var(--ink); background: var(--panel); border: 1px solid var(--line); border-radius: 10px;
+    height: 38px; padding: 0 12px; display: inline-flex; align-items: center; gap: 6px; cursor: pointer; backdrop-filter: blur(6px); }
+  .icon-btn:hover { background: rgba(124, 196, 160, 0.22); }
+  .icon-btn:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+  .icon-btn[aria-expanded="true"] { background: rgba(124, 196, 160, 0.3); border-color: var(--accent); }
+  .chip { height: 38px; box-sizing: border-box; display: inline-flex; align-items: center; gap: 6px; padding: 0 12px; font-size: 13px; }
+  .pop { position: fixed; z-index: 7; top: calc(58px + env(safe-area-inset-top, 0px)); left: max(12px, env(safe-area-inset-left, 0px));
+    width: min(330px, calc(100vw - 24px)); max-height: calc(100vh - 80px); overflow: auto; box-sizing: border-box;
+    display: flex; flex-direction: column; gap: 10px; padding: 12px; }
+  .pop h4 { margin: 0; font-size: 11px; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase; color: var(--muted); }
+  .pop .primary { width: 100%; }
+  .settings { display: flex; flex-wrap: wrap; gap: 6px; }
+  .go { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 6px; }
+  .go button { text-align: left; }
   .go button, .toggle {
     font: 600 12px var(--ui); color: var(--ink); background: rgba(255, 255, 255, 0.08); border: 1px solid var(--line);
     border-radius: 8px; padding: 7px 10px; cursor: pointer;
@@ -42,9 +57,9 @@
     padding-right: max(12px, env(safe-area-inset-right, 0px));
     display: flex; justify-content: space-between; align-items: flex-end; gap: 8px; flex-wrap: wrap;
   }
-  .help { color: var(--muted); font-size: 12px; max-width: 44ch; }
+  .help { color: var(--muted); font-size: 12px; line-height: 1.9; }
   .help kbd { font: 600 11px ui-monospace, Consolas, monospace; background: rgba(255,255,255,0.1); border: 1px solid var(--line); border-radius: 4px; padding: 0 4px; color: var(--ink); }
-  .stats { font: 500 11px ui-monospace, Consolas, monospace; color: var(--muted); font-variant-numeric: tabular-nums; white-space: pre; }
+  .stats { font: 500 11px ui-monospace, Consolas, monospace; color: var(--muted); font-variant-numeric: tabular-nums; white-space: pre-wrap; border-top: 1px solid var(--line); padding-top: 8px; }
   #where { color: var(--accent); font-weight: 600; }
   .stick { position: fixed; z-index: 4; width: 110px; height: 110px; border-radius: 50%; border: 2px solid var(--line); background: rgba(255,255,255,0.05); pointer-events: none; transform: translate(-50%, -50%); }
   .stick i { position: absolute; left: 50%; top: 50%; width: 44px; height: 44px; margin: -22px 0 0 -22px; border-radius: 50%; background: rgba(124,196,160,0.55); }
@@ -81,57 +96,146 @@
     #mp-preview { height: 200px; order: -1; }
     #mp-teacher-panel { top: auto; bottom: 120px; width: 190px; }
   }
-  /* RPG action pad (touch) */
-  #rpg-actions { position: fixed; z-index: 6; right: max(14px, env(safe-area-inset-right, 0px)); bottom: calc(70px + env(safe-area-inset-bottom, 0px));
+  /* RPG action pad, folded behind one Actions button */
+  #rpg-toggle { position: fixed; z-index: 6; right: max(14px, env(safe-area-inset-right, 0px)); bottom: calc(14px + env(safe-area-inset-bottom, 0px));
+    height: 44px; border-radius: 22px; }
+  #rpg-actions { position: fixed; z-index: 6; right: max(14px, env(safe-area-inset-right, 0px)); bottom: calc(68px + env(safe-area-inset-bottom, 0px));
     display: grid; grid-template-columns: repeat(2, 64px); gap: 10px; }
   #rpg-actions button { width: 64px; height: 64px; border-radius: 50%; border: 2px solid rgba(255,255,255,0.5); background: rgba(20, 28, 24, 0.55);
     color: #fff; font: 700 22px var(--ui); display: grid; place-items: center; line-height: 1; cursor: pointer; backdrop-filter: blur(4px); padding: 0; }
   #rpg-actions button small { font-size: 10px; font-weight: 600; opacity: 0.85; }
   #rpg-actions button[aria-pressed="true"] { background: rgba(124, 196, 160, 0.6); border-color: #fff; }
   #rpg-actions button:active { transform: scale(0.94); }
-  #rpg-actions.compact { grid-template-columns: repeat(5, 46px); gap: 6px; bottom: calc(70px + env(safe-area-inset-bottom, 0px)); }
+  #rpg-actions.compact { grid-template-columns: repeat(6, 46px); gap: 6px; }
+  #emote-menu { position: absolute; right: 0; bottom: calc(100% + 8px); display: flex; gap: 6px; padding: 6px; border-radius: 40px; }
+  #rpg-actions #emote-menu button { width: 52px; height: 52px; font-size: 20px; }
   #rpg-actions.compact button { width: 46px; height: 46px; font-size: 16px; }
   #rpg-ring { position: fixed; z-index: 3; left: max(30px, env(safe-area-inset-left, 0px)); bottom: calc(40px + env(safe-area-inset-bottom, 0px));
     width: 150px; height: 150px; border-radius: 50%; border: 2px solid rgba(255,255,255,0.45); pointer-events: none;
     box-shadow: inset 0 0 0 1px rgba(0,0,0,0.15); }
   #loadhint { color: var(--muted); font-size: 12px; }
-  @media (max-width: 560px) { .help { display: none; } #rpg-actions { bottom: calc(24px + env(safe-area-inset-bottom, 0px)); } }
+  /* loading screen + first-visit guide */
+  .load-card { width: min(420px, 100%); }
+  .load-card .bar { height: 6px; border-radius: 3px; background: rgba(255,255,255,0.1); overflow: hidden; margin: 14px 0 10px; }
+  .load-card .bar i { display: block; height: 100%; width: 0; background: var(--accent); transition: width 0.25s; }
+  #loadtip { color: var(--muted); font-size: 13px; min-height: 2.8em; margin: 0; }
+  #guide { position: fixed; inset: 0; z-index: 10; display: grid; place-items: center; background: rgba(8, 12, 10, 0.55); padding: 16px; }
+  .guide-card { width: min(460px, 100%); padding: 18px; display: flex; flex-direction: column; gap: 14px; }
+  .guide-card h2 { margin: 0; font-size: 18px; }
+  .guide-grid { display: grid; grid-template-columns: max-content 1fr; gap: 10px 14px; align-items: center; font-size: 14px; }
+  .guide-grid kbd { font: 700 12px ui-monospace, Consolas, monospace; background: rgba(255,255,255,0.1); border: 1px solid var(--line); border-radius: 6px; padding: 4px 8px; text-align: center; }
+  /* "E" prompt */
+  #use-prompt { position: fixed; z-index: 6; left: 50%; bottom: calc(96px + env(safe-area-inset-bottom, 0px)); transform: translateX(-50%);
+    display: flex; align-items: center; gap: 8px; color: var(--ink); font: 600 14px var(--ui); cursor: pointer; padding: 8px 14px 8px 8px; }
+  #use-prompt kbd { font: 700 13px ui-monospace, Consolas, monospace; background: var(--accent); color: #0f1512; border-radius: 6px; padding: 3px 8px; }
+  #use-prompt:hover { border-color: var(--accent); }
+  /* shared modal (books, canteen, chalkboard, slides, map) */
+  #ui-modal { position: fixed; inset: 0; z-index: 9; display: grid; place-items: center; background: rgba(8, 12, 10, 0.55); padding: 16px; }
+  .ui-card { width: min(480px, 100%); max-height: 100%; overflow: auto; box-sizing: border-box; padding: 16px; display: flex; flex-direction: column; gap: 12px; background: #17201b; }
+  .ui-card.wide { width: min(860px, 100%); }
+  .ui-head { display: flex; justify-content: space-between; align-items: center; gap: 12px; }
+  .ui-head h2 { margin: 0; font-size: 18px; }
+  .ui-body { display: flex; flex-direction: column; gap: 12px; }
+  .row { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+  .muted { color: var(--muted); font-size: 13px; margin: 0; }
+  .board-canvas { width: 100%; aspect-ratio: 4 / 1; border-radius: 8px; border: 6px solid #6b4a2f; box-sizing: border-box; touch-action: none; cursor: crosshair; display: block; }
+  .swatch-btn { min-width: 44px; }
+  .book-list, .menu-grid { display: grid; gap: 8px; }
+  .menu-grid { grid-template-columns: repeat(auto-fill, minmax(190px, 1fr)); }
+  .book-list button, .menu-grid button { text-align: left; font-size: 14px; padding: 10px 12px; }
+  .book-page { background: #f4efe2; color: #2b2620; border-radius: 8px; padding: 22px; font: 17px/1.6 Georgia, "Times New Roman", serif; min-height: 9em; }
+  .file-pick { display: flex; flex-direction: column; gap: 8px; font-size: 14px; }
+  .full-map { width: 100%; border-radius: 10px; cursor: pointer; display: block; }
+  #slide-bar { position: fixed; z-index: 6; left: 50%; top: calc(58px + env(safe-area-inset-top, 0px)); transform: translateX(-50%); display: flex; gap: 6px; align-items: center; font-size: 13px; }
+  /* dialogue with people */
+  #dialog-box { position: fixed; z-index: 7; left: 50%; bottom: calc(14px + env(safe-area-inset-bottom, 0px)); transform: translateX(-50%); width: min(520px, calc(100vw - 24px)); box-sizing: border-box; padding: 12px 14px; }
+  #dialog-box b { color: var(--accent); font-size: 13px; }
+  #dialog-box p { margin: 4px 0 10px; font-size: 15px; line-height: 1.45; }
+  #dialog-box .row { justify-content: flex-end; }
+  /* tasks */
+  #tasks-btn .count { font-size: 11px; background: rgba(124,196,160,0.3); border-radius: 10px; padding: 1px 6px; }
+  #tasks-btn.pulse { animation: pulse 0.9s ease-out 2; }
+  @keyframes pulse { 0% { box-shadow: 0 0 0 0 rgba(124,196,160,0.8); } 100% { box-shadow: 0 0 0 14px rgba(124,196,160,0); } }
+  ol.tasks { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; font-size: 13px; }
+  ol.tasks li { display: flex; gap: 8px; align-items: center; }
+  ol.tasks li.done { color: var(--muted); text-decoration: line-through; }
+  ol.tasks .tick { width: 18px; height: 18px; flex: none; border-radius: 5px; border: 1px solid var(--line); display: grid; place-items: center; font-size: 12px; color: #0f1512; }
+  ol.tasks li.done .tick { background: var(--accent); border-color: var(--accent); }
+  .confetti { position: fixed; inset: 0; z-index: 11; pointer-events: none; overflow: hidden; }
+  .confetti i { position: absolute; top: -12px; width: 8px; height: 12px; border-radius: 2px; animation: fall linear forwards; }
+  @keyframes fall { to { top: 105vh; } }
+  /* mini-map */
+  #minimap { position: fixed; z-index: 5; top: calc(10px + env(safe-area-inset-top, 0px)); right: max(12px, env(safe-area-inset-right, 0px));
+    width: 168px; height: 168px; padding: 0; border-radius: 50%; overflow: hidden; border: 3px solid rgba(16,24,20,0.85); background: #79a85c; cursor: pointer; box-shadow: 0 2px 10px rgba(0,0,0,0.3); }
+  #minimap canvas { width: 100%; height: 100%; display: block; }
+  @media (min-width: 641px) { #mp-teacher-panel { top: 196px; } }
+  @media (max-width: 640px) { #minimap { width: 112px; height: 112px; } #dialog-box { bottom: calc(76px + env(safe-area-inset-bottom, 0px)); width: calc(100vw - 110px); left: 12px; transform: none; } }
+  @media (max-width: 560px) { .icon-btn span { display: none; } }
 </style>
 
 <div id="view"></div>
 <div id="err" hidden></div>
-<div id="loading"><div><b>Katuro University</b><span id="loadmsg">Loading the school…</span></div></div>
+<div id="loading"><div class="load-card">
+  <b>Katuro University</b>
+  <span id="loadmsg">Loading the school…</span>
+  <div class="bar" role="progressbar" aria-valuemin="0" aria-valuemax="100"><i id="loadbar"></i></div>
+  <p id="loadtip"></p>
+</div></div>
+
+<div id="guide" hidden>
+  <div class="guide-card card" role="dialog" aria-labelledby="guide-title">
+    <h2 id="guide-title">How to play</h2>
+    <div class="guide-grid" id="guide-keys"></div>
+    <button type="button" class="primary" id="guide-ok">Got it</button>
+  </div>
+</div>
 
 <div class="hud">
-  <div class="card title">
-    <b>Katuro University</b>
-    <span>You are at: <span id="where">Main gate</span></span> <span id="loadhint"></span>
-    <div style="margin-top:6px"><button type="button" class="primary" id="mp-open">Join class (multiplayer)</button>
-      <div id="mp-bar" hidden><span id="mp-status">Connecting…</span>
-        <button type="button" class="toggle" id="mp-mic" aria-pressed="false">Mute</button>
-        <button type="button" class="toggle" id="mp-hand" aria-pressed="false">Raise hand</button>
-        <button type="button" class="toggle" id="mp-leave">Leave</button>
-      </div>
+  <div class="dock">
+    <button type="button" class="icon-btn" id="menu-btn" aria-expanded="false" aria-controls="menu-pop" title="Menu (M)">☰ <span>Menu</span></button>
+    <button type="button" class="icon-btn" id="go-btn" aria-expanded="false" aria-controls="go-pop" title="Go to a place (G)">📍 <span>Go to</span></button>
+    <div class="card chip" title="You are here"><span id="where">Main gate</span> <span id="loadhint"></span></div>
+    <div id="mp-bar" class="card" hidden><span id="mp-status">Connecting…</span>
+      <button type="button" class="toggle" id="mp-mic" aria-pressed="false">Mute</button>
+      <button type="button" class="toggle" id="mp-hand" aria-pressed="false">Raise hand</button>
+      <button type="button" class="toggle" id="mp-leave">Leave</button>
     </div>
   </div>
-  <div class="card go" role="group" aria-label="Go to">
+</div>
+
+<div id="menu-pop" class="card pop" hidden>
+  <div class="title"><b>Katuro University</b><span>3D school preview</span></div>
+  <button type="button" class="primary" id="mp-open">Join class (multiplayer)</button>
+  <button type="button" class="toggle" id="look-open">Change my character</button>
+  <h4>Settings</h4>
+  <div class="settings" id="settings">
+    <button type="button" class="toggle" id="lang-btn">Language: English</button>
+    <button type="button" class="toggle" id="quality" aria-pressed="false">Simple graphics</button>
+    <button type="button" class="toggle" id="markers" aria-pressed="false">Hubs markers</button>
+    <button type="button" class="toggle" id="guide-open">Show controls guide</button>
+  </div>
+  <h4>Controls</h4>
+  <div class="help">Move with <kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd> or arrow keys, hold <kbd>Shift</kbd> to run, drag to look around. On a phone: left thumb moves, right thumb looks.</div>
+  <div class="stats"><div id="device"></div><div id="stats"></div></div>
+</div>
+
+<div id="go-pop" class="card pop" hidden>
+  <h4>Go to</h4>
+  <div class="go" role="group" aria-label="Go to">
     <button type="button" data-go="gate">Gate</button>
     <button type="button" data-go="plaza">Flag plaza</button>
     <button type="button" data-go="classroom">Classroom 1</button>
     <button type="button" data-go="podium">Podium</button>
+    <button type="button" data-go="room2">Grade 8 room</button>
+    <button type="button" data-go="lab">Science Lab</button>
+    <button type="button" data-go="ict">ICT Room</button>
     <button type="button" data-go="court">Covered court</button>
     <button type="button" data-go="stage">Stage</button>
     <button type="button" data-go="canteen">Canteen</button>
     <button type="button" data-go="library">Library</button>
     <button type="button" data-go="garden">Garden</button>
-    <button type="button" class="toggle" id="markers" aria-pressed="false">Hubs markers</button>
-    <button type="button" class="toggle" id="quality" aria-pressed="false">Simple graphics</button>
+    <button type="button" data-go="admin">Principal's office</button>
   </div>
-</div>
-
-<div class="bottom">
-  <div class="card help">Move with <kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd> or arrow keys, hold <kbd>Shift</kbd> to run, drag to look around. On a phone: left thumb moves, right thumb looks.</div>
-  <div class="card stats"><div id="device"></div><div id="stats"></div></div>
 </div>
 
 <div class="stick" id="stick" hidden><i></i></div>
@@ -142,14 +246,20 @@
       <div><h2 id="mp-title">Join the class</h2><p>Everyone who uses the same class code meets in this school. Demo for up to about 8 people.</p></div>
       <label>Your name <input type="text" id="mp-name" maxlength="24" placeholder="First name or nickname" autocomplete="off"></label>
       <label>Class code <input type="text" id="mp-room" maxlength="40" autocomplete="off"></label>
+      <label>Body <select id="mp-body"></select></label>
       <label>Skin tone <span class="swatches" id="mp-skin"></span></label>
       <label>Hairstyle <select id="mp-hair"></select></label>
       <label>Hair colour <span class="swatches" id="mp-haircolor"></span></label>
       <label>Outfit <select id="mp-outfit"></select></label>
-      <label class="check"><input type="checkbox" id="mp-usemic" checked> Use my microphone</label>
-      <label class="check"><input type="checkbox" id="mp-teacher"> I'm the teacher</label>
+      <label class="check"><input type="checkbox" id="mp-bag" checked> Backpack</label>
+      <label id="mp-bagcolor-row">Backpack colour <span class="swatches" id="mp-bagcolor"></span></label>
+      <div id="mp-join-fields" class="mp-form">
+        <label class="check"><input type="checkbox" id="mp-usemic" checked> Use my microphone</label>
+        <label class="check"><input type="checkbox" id="mp-teacher"> I'm the teacher</label>
+      </div>
       <div class="mp-actions">
         <button type="button" class="toggle" id="mp-close">Cancel</button>
+        <button type="button" class="toggle" id="mp-save">Save look</button>
         <button type="button" class="primary" id="mp-join">Join</button>
       </div>
     </div>
@@ -175,10 +285,11 @@
 <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/utils/BufferGeometryUtils.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/GLTFLoader.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/RGBELoader.js"></script>
-<script src="world.js?v=202610192157-2f54343ff"></script>
-<script src="avatar.js?v=202610192157-2f54343ff"></script>
+<script src="world.js?v=202610201526-5710fc83b"></script>
+<script src="avatar.js?v=202610201526-5710fc83b"></script>
 <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/utils/SkeletonUtils.js"></script>
-<script src="character.js?v=202610192157-2f54343ff"></script>
+<script src="character.js?v=202610201526-5710fc83b"></script>
+<script src="i18n.js?v=202610201526-5710fc83b"></script>
 
 <script>
 "use strict";
@@ -187,7 +298,7 @@
 // ============================================================================================
 (async function preview() {
   // Replaced with a build number by scripts/publish-pages.sh, so every release bypasses old cached files
-  const BUILD = "202610192157-2f54343ff";
+  const BUILD = "202610201526-5710fc83b";
   const view = document.getElementById("view");
   const err = document.getElementById("err");
   if (!window.THREE || !THREE.BufferGeometryUtils) {
@@ -245,14 +356,31 @@
   const deviceEl = document.getElementById("device");
   const describeDevice = () => `${device.type} · ${device.os} · ${device.gpu.slice(0, 32)}${device.mem ? " · " + device.mem + " GB" : ""} · ${simple ? "Simple" : device.tier[0].toUpperCase() + device.tier.slice(1)} quality`;
   deviceEl.textContent = describeDevice();
-  const loadmsg = document.getElementById("loadmsg");
+  const loadmsg = document.getElementById("loadmsg"), loadbar = document.getElementById("loadbar");
+  const t = s => (window.I18N ? window.I18N.t(s) : s);
+  const fil = window.I18N && window.I18N.lang === "fil";
+  // tips while loading (English / Filipino)
+  const TIPS = [
+    ["Press E near people and things to talk to them or use them.", "Pindutin ang E malapit sa tao o bagay para kausapin o gamitin."],
+    ["Press J to see your first-day tasks.", "Pindutin ang J para makita ang mga gawain mo."],
+    ["Tap the mini-map to see the whole campus.", "Pindutin ang mapa para makita ang buong paaralan."],
+    ["Press 1 to 5 to wave, clap, cheer, nod or dance.", "Pindutin ang 1 hanggang 5 para kumaway, pumalakpak, humiyaw, tumango o sumayaw."],
+    ["Try the evening and the rain in Menu → Settings.", "Subukan ang gabi at ulan sa Menu → Settings."],
+    ["Bayanihan: help a classmate today!", "Bayanihan: tumulong sa kaklase ngayon!"]
+  ];
+  const tipEl = document.getElementById("loadtip");
+  let tipN = Math.floor(Math.random() * TIPS.length);
+  const nextTip = () => { tipEl.textContent = "💡 " + TIPS[tipN++ % TIPS.length][fil ? 1 : 0]; };
+  nextTip();
+  const tipTimer = setInterval(nextTip, 3500);
+  const progress = pct => { loadmsg.textContent = `${t("Loading the school…")} ${pct}%`; loadbar.style.width = pct + "%"; };
   const assets = { tex: {}, models: {}, sky: null };
   if (!simple && THREE.GLTFLoader && THREE.RGBELoader) {
     const TEX = ["floor", "wall", "roof", "concrete", "grass", "court", "wood"];
     const MODELS = ["desk", "chair", "teacher-desk", "ceiling-fan", "shelf"];
     const total = TEX.length * 2 + MODELS.length + 2;
     let done = 0;
-    const tick = () => { done++; loadmsg.textContent = `Loading the school… ${Math.round((done / total) * 100)}%`; };
+    const tick = () => { done++; progress(Math.round((done / total) * 100)); };
     const texLoader = new THREE.TextureLoader();
     const loadTex = (url, srgb) => new Promise((ok, fail) => texLoader.load(url, t => {
       t.wrapS = t.wrapT = THREE.RepeatWrapping;
@@ -278,6 +406,26 @@
     simple = true;
   }
   document.getElementById("loading").hidden = true;
+  clearInterval(tipTimer);
+  // language
+  const langBtn = document.getElementById("lang-btn");
+  langBtn.textContent = fil ? "Wika: Filipino" : "Language: English";
+  langBtn.addEventListener("click", () => window.I18N && window.I18N.setLang(fil ? "en" : "fil"));
+  // first-visit controls guide (also in Menu → Settings)
+  const guide = document.getElementById("guide");
+  const GUIDE = device.touch
+    ? [["👈", "Left thumb: move", "Kaliwang hinlalaki: gumalaw"], ["👉", "Right thumb: look around", "Kanang hinlalaki: tumingin-tingin"], ["🎮", "Actions: jump, run, sit, emotes", "Kilos: talon, takbo, upo, emote"],
+       ["E", "Tap the prompt to use or talk", "Pindutin ang prompt para gamitin o kausapin"], ["📋", "Tasks: your first-day checklist", "Gawain: listahan sa unang araw"], ["🗺", "Tap the map to travel", "Pindutin ang mapa para maglakbay"]]
+    : [["W A S D", "Move (Shift to run)", "Gumalaw (Shift para tumakbo)"], ["🖱", "Drag to look around", "I-drag para tumingin-tingin"], ["E", "Use / talk", "Gamitin / kausapin"],
+       ["Space · C · H", "Jump · sit · raise hand", "Talon · upo · magtaas ng kamay"], ["1 – 5", "Wave, clap, cheer, nod, dance", "Kaway, palakpak, hiyaw, tango, sayaw"], ["J · G · M", "Tasks · go to · menu", "Gawain · pumunta · menu"]];
+  document.getElementById("guide-keys").innerHTML = GUIDE.map(([k, en, fl]) => `<kbd>${k}</kbd><span>${fil ? fl : en}</span>`).join("");
+  const showGuide = () => { guide.hidden = false; togglePop(null); };
+  document.getElementById("guide-ok").addEventListener("click", () => { guide.hidden = true; try { localStorage.setItem("world.guided", "1"); } catch (e) {} });
+  document.getElementById("guide-open").addEventListener("click", showGuide);
+  guide.addEventListener("pointerdown", e => e.stopPropagation());
+  let guided = false;
+  try { guided = localStorage.getItem("world.guided") === "1"; } catch (e) {}
+  if (!guided) setTimeout(showGuide, 600);
   const qualityBtn = document.getElementById("quality");
   qualityBtn.setAttribute("aria-pressed", String(simple));
   qualityBtn.addEventListener("click", () => {
@@ -286,7 +434,7 @@
   });
   view.appendChild(renderer.domElement);
 
-  const { scene, colliders, places, markers, materials: M, props, signs, trees, ramps } = buildWorld(THREE, { realFurniture: !simple });
+  const { scene, colliders, places, markers, materials: M, props, signs, trees, ramps, doors, spots, areas, map } = buildWorld(THREE, { realFurniture: !simple });
   scene.background = new THREE.Color(0xa9d3ef);
   scene.fog = new THREE.Fog(0xa9d3ef, 60, 150);
 
@@ -324,9 +472,15 @@
     const ROT = { desk: 0, chair: Math.PI, "teacher-desk": 0, "ceiling-fan": 0, shelf: 0 }; // model-facing fix-ups
     const tmpObj = new THREE.Object3D();
     const fans = [];
+    // Instanced furniture can't be frustum-culled (the source bounds sit at the origin), so each set is hidden
+    // when the camera is far from it: 35 desks + 35 chairs are ~38k triangles nobody sees from the gate.
+    const furniture = [];
+    window.__hideFarFurniture = cam => { for (const f of furniture) f.inst.visible = Math.hypot(cam.x - f.x, cam.z - f.z) < f.r + 30; };
     for (const [kind, list] of Object.entries(byKind)) {
       const src = assets.models[kind];
       if (!src) continue;
+      const fx = list.reduce((a, p) => a + p.x, 0) / list.length, fz = list.reduce((a, p) => a + p.z, 0) / list.length;
+      const fr = Math.max(...list.map(p => Math.hypot(p.x - fx, p.z - fz)));
       src.updateMatrixWorld(true);
       src.traverse(mesh => {
         if (!mesh.isMesh) return;
@@ -339,6 +493,7 @@
         });
         inst.name = kind;
         inst.frustumCulled = false; // instances are spread out; the source geometry's bounds sit at the origin
+        furniture.push({ inst, x: fx, z: fz, r: fr });
         if (kind === "ceiling-fan") fans.push({ inst, list, local: mesh.matrixWorld.clone() });
         scene.add(inst);
       });
@@ -477,9 +632,29 @@
   function go(key) {
     const p = places[key];
     me.x = p.x; me.z = p.z; me.yaw = p.yaw; me.pitch = -0.04;
-    whereEl.textContent = p.label;
+    whereEl.textContent = t(p.label);
   }
-  document.querySelectorAll("[data-go]").forEach(b => b.addEventListener("click", () => go(b.dataset.go)));
+  document.querySelectorAll("[data-go]").forEach(b => b.addEventListener("click", () => { go(b.dataset.go); togglePop(null); }));
+
+  // ---------- pop-up panels (Menu, Go to): one open at a time; Esc, a click outside or M / G close them
+  const pops = [["menu-btn", "menu-pop"], ["go-btn", "go-pop"]].map(([b, p]) => ({ btn: document.getElementById(b), pop: document.getElementById(p) }));
+  function togglePop(which) {
+    pops.forEach(x => {
+      const open = x === which && x.pop.hidden;
+      x.pop.hidden = !open;
+      x.btn.setAttribute("aria-expanded", String(open));
+    });
+  }
+  pops.forEach(x => x.btn.addEventListener("click", () => togglePop(x)));
+  addEventListener("pointerdown", e => {
+    if (!pops.some(x => x.pop.contains(e.target) || x.btn.contains(e.target))) togglePop(null);
+  });
+  addEventListener("keydown", e => {
+    if (e.target.closest && e.target.closest("input, select, textarea")) return;
+    if (e.code === "Escape") togglePop(null);
+    if (e.code === "KeyM") togglePop(pops[0]);
+    if (e.code === "KeyG") togglePop(pops[1]);
+  });
 
   function collide(nx, nz) {
     for (const [x0, z0, x1, z1] of colliders) {
@@ -498,17 +673,16 @@
     }
     return [nx, nz];
   }
-  function area() {
-    if (me.x > -30 && me.x < -16 && me.z > -26 && me.z < -6) return me.z < -21 ? "Podium" : "Classroom 1";
-    if (me.x > 33 && me.x < 70 && me.z > -18 && me.z < 8) return "Covered court";
-    if (me.x > -58 && me.x < -38 && me.z > -6 && me.z < 17) return "Canteen";
-    if (me.x > -58 && me.x < -40 && me.z > -26 && me.z < -6) return "Library";
-    if (me.x > 8 && me.x < 28 && me.z > 0 && me.z < 12) return "Stage";
-    if (me.x > -20 && me.x < 8 && me.z > -45 && me.z < -27) return "Vegetable garden";
-    if (me.z > 60) return "Main gate";
-    if (me.z > -3 && me.z < 24 && Math.abs(me.x) < 34) return "Flag plaza";
-    if (me.z > -6 && me.z < -3) return "Veranda";
-    return "School grounds";
+  // one shared toast for every module (text or a DOM node)
+  function showToast(content, ms = 2800) {
+    const t = document.getElementById("mp-toast");
+    t.innerHTML = ""; t.append(content); t.hidden = false;
+    clearTimeout(showToast.t); showToast.t = setTimeout(() => { t.hidden = true; }, ms);
+  }
+  // named areas come from the world definition (most specific first)
+  function area(x = me.x, z = me.z) {
+    const a = areas.find(a => x > a.x0 && x < a.x1 && z > a.z0 && z < a.z1);
+    return a ? a.label : "School grounds";
   }
 
   const keys = new Set();
@@ -576,8 +750,6 @@
     if (keys.has("KeyD")) s += 1;
     if (keys.has("ArrowLeft") && !rpg) me.yaw += 1.8 * dt;
     if (keys.has("ArrowRight") && !rpg) me.yaw -= 1.8 * dt;
-    if (keys.has("KeyQ")) me.yaw += 1.8 * dt;
-    if (keys.has("KeyE")) me.yaw -= 1.8 * dt;
     f -= moveVec.y; s += moveVec.x;
     const speed = (keys.has("ShiftLeft") || keys.has("ShiftRight") ? 6 : 3) * dt;
     const len = me.locked || rpg ? 0 : Math.hypot(f, s);
@@ -593,6 +765,8 @@
     if (rpg) window.__world.player.update(dt);
     else { camera.position.set(me.x, EYE, me.z); camera.rotation.set(me.pitch, me.yaw, 0, "YXZ"); }
     if (window.__world && window.__world.onEnv) window.__world.onEnv(dt, now / 1000);
+    if (window.__world) for (const h of window.__world.hooks) h(dt, now / 1000);
+    if (window.__hideFarFurniture) window.__hideFarFurniture(camera.position);
     renderer.render(scene, camera);
 
     frames++;
@@ -605,16 +779,16 @@
         const t = document.getElementById("mp-toast");
         if (t) {
           t.innerHTML = "";
-          t.append("This device is struggling. ");
+          t.append(window.I18N ? I18N.t("This device is struggling. ") : "This device is struggling. ");
           const b = document.createElement("button");
-          b.type = "button"; b.className = "toggle"; b.textContent = "Switch to simple graphics";
+          b.type = "button"; b.className = "toggle"; b.textContent = window.I18N ? I18N.t("Switch to simple graphics") : "Switch to simple graphics";
           b.addEventListener("click", () => document.getElementById("quality").click());
           t.append(b); t.hidden = false;
           setTimeout(() => { t.hidden = true; }, 12000);
         }
       }
       const a = area();
-      if (a !== lastArea) { whereEl.textContent = a; lastArea = a; }
+      if (a !== lastArea) { whereEl.textContent = t(a); lastArea = a; }
     }
     requestAnimationFrame(frame);
   }
@@ -624,15 +798,30 @@
     .map(m => ({ x: m.position.x, z: m.position.z, yaw: m.rotation.y }));
   const pods = markers.children.filter(m => /^pod-[a-d]$/.test(m.name)).map(m => ({ x: m.position.x, z: m.position.z, w: m.scale.x, d: m.scale.z }));
   places.podiumFront = { x: places.podium.x, z: -21.9, yaw: 0 };
-  const indoorAreas = [[-30, -26, 26, -6], [-56, -4, -42, 5], [-56, -24, -42, -14]];   // school building, canteen, library
+  const indoorAreas = areas.filter(a => a.indoor).map(a => [a.x0, a.z0, a.x1, a.z1]);
   window.__world = { THREE, scene, camera, renderer, me, places, go, seats, pods, byName, device, onTick: null,
-    keys, moveVec, colliders, collide, indoorAreas, build: BUILD, simple, materials: M, trees, signs, ramps };
+    keys, moveVec, colliders, collide, indoorAreas, build: BUILD, simple, materials: M, trees, signs, ramps,
+    doors, spots, areas, map, closePops: () => togglePop(null), area, markerViz, toast: showToast,
+    hooks: [],   // per-frame callbacks (dt, seconds) added by the modules
+    mpHandlers: {},   // multiplayer event type → [fn(data, peerId, peer)]; W.mpSend(type, data) exists while in a class
+    // Blockers: solid boxes added/removed at runtime (closed doors). player.js mirrors them into the physics world.
+    blockers: new Map(),
+    setBlocker(id, boxOrNull) {
+      const old = this.blockers.get(id);
+      if (old) { const i = colliders.indexOf(old); if (i >= 0) colliders.splice(i, 1); this.blockers.delete(id); }
+      if (boxOrNull) { colliders.push(boxOrNull); this.blockers.set(id, boxOrNull); }
+      if (this.onBlockers) this.onBlockers(id, boxOrNull);
+    } };
   window.dispatchEvent(new Event("world-ready"));
 
   go("gate");
   requestAnimationFrame(frame);
 })();
 </script>
-<script type="module" src="multiplayer.js?v=202610192157-2f54343ff"></script>
-<script type="module" src="player.js?v=202610192157-2f54343ff"></script>
-<script type="module" src="env.js?v=202610192157-2f54343ff"></script>
+<script type="module" src="multiplayer.js?v=202610201526-5710fc83b"></script>
+<script type="module" src="player.js?v=202610201526-5710fc83b"></script>
+<script type="module" src="env.js?v=202610201526-5710fc83b"></script>
+<script type="module" src="interact.js?v=202610201526-5710fc83b"></script>
+<script type="module" src="npc.js?v=202610201526-5710fc83b"></script>
+<script type="module" src="quests.js?v=202610201526-5710fc83b"></script>
+<script type="module" src="minimap.js?v=202610201526-5710fc83b"></script>

@@ -4,7 +4,7 @@
 // preview and by multiplayer (other people in the school). No DOM except the name-tag canvas.
 // ============================================================================================
 (function () {
-  const SKIN = { a: "#f3d3b5", b: "#e2b48c", c: "#c98f62", d: "#a8693f", e: "#7a4a2a" };
+  const SKIN = { a: "#e6bf9c", b: "#d6a67c", c: "#c98f62", d: "#a8693f", e: "#7a4a2a" };
   const HAIR_COLOR = { black: "#1d1a19", brown: "#4a2e1f", auburn: "#7a3b20", gray: "#9a9a9a", blonde: "#c9a25a" };
   const OUTFITS = {
     polo: { label: "School uniform (polo)", shirt: "#f7f7f2", bottom: "#24324f", collar: "#f7f7f2", skirt: false },
@@ -13,9 +13,16 @@
     casual: { label: "Casual", shirt: "#d2553f", bottom: "#4a6a8f", collar: "#d2553f", skirt: false },
     teacher: { label: "Teacher (Filipiniana-style)", shirt: "#e9d9b6", bottom: "#3a2f2a", collar: "#c8a35b", skirt: false }
   };
+  // staff outfits for the people in the school (not offered in the editor)
+  const STAFF_OUTFITS = {
+    guard: { label: "Security guard", shirt: "#2b3a55", bottom: "#1c2333", collar: "#2b3a55", skirt: false },
+    vendor: { label: "Canteen", shirt: "#f2efe6", bottom: "#7a3b2e", collar: "#c0392b", skirt: false }
+  };
   const HAIR_STYLES = { short: "Short", long: "Long", ponytail: "Ponytail", bun: "Bun", buzz: "Buzz cut" };
+  const BODIES = { male: "Boy / man", female: "Girl / woman" };
+  const BAG_COLORS = { navy: "#2f4f7f", red: "#a8322d", green: "#2f6b4f", black: "#26292b", pink: "#d0708a" };
 
-  const DEFAULT_LOOK = { name: "", skin: "c", hair: "short", hairColor: "black", outfit: "polo" };
+  const DEFAULT_LOOK = { name: "", skin: "c", hair: "short", hairColor: "black", outfit: "polo", body: "", bag: true, bagColor: "#2f4f7f" };   // body "" = guess from outfit/hair
 
   // Soft round shadow texture, shared by avatars and tree shadows
   let shadowTex = null;
@@ -63,7 +70,7 @@
   // Returns a THREE.Group with userData { setHand(bool), setTalking(level 0..1), setName(name, role) }.
   function buildAvatar(THREE, look = {}, opts = {}) {
     const L = { ...DEFAULT_LOOK, ...look };
-    const outfit = OUTFITS[L.outfit] || OUTFITS.polo;
+    const outfit = OUTFITS[L.outfit] || STAFF_OUTFITS[L.outfit] || OUTFITS.polo;
     const skin = mat(THREE, SKIN[L.skin] || SKIN.c);
     const hair = mat(THREE, HAIR_COLOR[L.hairColor] || HAIR_COLOR.black, { roughness: 0.6 });
     const shirt = mat(THREE, outfit.shirt);
@@ -165,6 +172,6 @@
     return root;
   }
 
-  const api = { buildAvatar, nameTag, shadowTexture, SKIN, HAIR_COLOR, OUTFITS, HAIR_STYLES, DEFAULT_LOOK };
+  const api = { buildAvatar, nameTag, shadowTexture, SKIN, HAIR_COLOR, OUTFITS, HAIR_STYLES, BODIES, BAG_COLORS, DEFAULT_LOOK };
   (typeof window !== "undefined" ? window : globalThis).Avatars = api;
 })();

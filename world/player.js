@@ -15,6 +15,7 @@ async function start() {
   const status = document.getElementById("loadhint");
   if (status) status.textContent = "Loading characters…";
   await window.Characters.load(THREE, "assets/characters/", W.build);
+  window.dispatchEvent(new Event("characters-ready"));
   let RAPIER = null;
   try {
     RAPIER = (await import("https://cdn.jsdelivr.net/npm/@dimforge/rapier3d-compat@0.19.3/rapier.mjs")).default;
@@ -24,6 +25,7 @@ async function start() {
 
   const store = { get(k, d) { try { const v = localStorage.getItem(k); return v ? JSON.parse(v) : d; } catch (e) { return d; } } };
   let look = { ...window.Avatars.DEFAULT_LOOK, ...store.get("world.look", {}), name: "" };
+  W.myLook = () => look;
   let self = window.Characters.create(THREE, look, { noTag: true });
   scene.add(self);
 
@@ -33,7 +35,9 @@ async function start() {
   if (RAPIER) {
     world = new RAPIER.World({ x: 0, y: -9.81, z: 0 });
     world.createCollider(RAPIER.ColliderDesc.cuboid(80, 0.1, 80).setTranslation(0, -0.1, 0));
+    const runtime = new Set(W.blockers.values());   // added below, so they can be removed again
     for (const c of W.colliders) {
+      if (runtime.has(c)) continue;
       const [x0, z0, x1, z1, y0 = 0, y1 = 3.6] = c;
       if (y1 - y0 < 0.02) continue;
       world.createCollider(RAPIER.ColliderDesc.cuboid((x1 - x0) / 2, (y1 - y0) / 2, (z1 - z0) / 2).setTranslation((x0 + x1) / 2, (y0 + y1) / 2, (z0 + z1) / 2));
@@ -46,6 +50,14 @@ async function start() {
         .setTranslation(cx, cy, (r.z0 + r.z1) / 2)
         .setRotation({ x: 0, y: 0, z: Math.sin(ang / 2), w: Math.cos(ang / 2) }));
     }
+    // runtime blockers (closed doors): mirror W.setBlocker into the physics world
+    const dyn = new Map();
+    const addBox = ([x0, z0, x1, z1, y0 = 0, y1 = 3.6]) => world.createCollider(RAPIER.ColliderDesc.cuboid((x1 - x0) / 2, (y1 - y0) / 2, (z1 - z0) / 2).setTranslation((x0 + x1) / 2, (y0 + y1) / 2, (z0 + z1) / 2));
+    W.onBlockers = (id, b) => {
+      if (dyn.has(id)) { world.removeCollider(dyn.get(id), true); dyn.delete(id); }
+      if (b) dyn.set(id, addBox(b));
+    };
+    for (const [id, b] of W.blockers) W.onBlockers(id, b);
     body = world.createRigidBody(RAPIER.RigidBodyDesc.kinematicPositionBased().setTranslation(me.x, FEET_TO_CENTER, me.z));
     collider = world.createCollider(RAPIER.ColliderDesc.capsule(0.55, 0.28), body);
     kcc = world.createCharacterController(0.02);
@@ -85,12 +97,17 @@ async function start() {
     if (mpBtn && !mpBtn.hidden && !document.getElementById("mp-bar").hidden) mpBtn.click();
     else W.localHand = !W.localHand;
   }
-  const toast = text => {
-    const t = document.getElementById("mp-toast");
-    if (!t) return;
-    t.textContent = text; t.hidden = false;
-    clearTimeout(toast.t); toast.t = setTimeout(() => { t.hidden = true; }, 2500);
-  };
+  const toast = text => W.toast(window.I18N ? window.I18N.t(text) : text, 2500);
+
+  // Emotes: played on your character and sent to everyone in the class (multiplayer.js reads W.localEmote)
+  const EMOTE_KEYS = ["wave", "clap", "cheer", "nod", "dance"];
+  let emoteCount = 0;
+  function emote(name) {
+    if (me.sitting && name === "dance") return;
+    self.userData.emote(name);
+    W.localEmote = { name, n: ++emoteCount };
+  }
+  W.emote = emote;
 
   addEventListener("keydown", e => {
     if (e.target.closest && e.target.closest("input, select, textarea")) return;
@@ -99,21 +116,54 @@ async function start() {
     if (e.code === "KeyH") toggleHand();
     if (e.code === "KeyV") toggleView();
     if (e.code === "KeyR") running = !running;
+    const n = /^Digit([1-5])$/.exec(e.code);
+    if (n) emote(EMOTE_KEYS[+n[1] - 1]);
   });
 
-  // ---------- on-screen action buttons (touch devices) + view toggle for everyone
+  // ---------- on-screen action buttons, folded behind one "Actions" button
+  // (open by default on touch devices, closed on computers where the keys do the same; remembered per device)
   const pad = document.createElement("div");
   pad.id = "rpg-actions";
+  const padBtn = document.createElement("button");
+  padBtn.type = "button"; padBtn.id = "rpg-toggle"; padBtn.className = "icon-btn";
+  padBtn.setAttribute("aria-controls", "rpg-actions");
+  padBtn.innerHTML = "🎮 <span>Actions</span>";
+  document.body.appendChild(padBtn);
+  const setPadOpen = open => {
+    pad.hidden = !open;
+    padBtn.setAttribute("aria-expanded", String(open));
+    padBtn.title = window.I18N ? window.I18N.t(open ? "Hide action buttons" : "Show action buttons") : open ? "Hide action buttons" : "Show action buttons";
+  };
+  let padOpen = W.device.touch;
+  try { const saved = localStorage.getItem("world.actions"); if (saved !== null) padOpen = saved === "1"; } catch (e) {}
+  setPadOpen(padOpen);
+  padBtn.addEventListener("click", () => {
+    setPadOpen(pad.hidden);
+    try { localStorage.setItem("world.actions", pad.hidden ? "0" : "1"); } catch (e) {}
+  });
   pad.innerHTML = `
     <button type="button" data-a="jump" aria-label="Jump">⤒<small>Jump</small></button>
     <button type="button" data-a="run" aria-label="Run" aria-pressed="false">»<small>Run</small></button>
     <button type="button" data-a="hand" aria-label="Raise hand">✋<small>Hand</small></button>
     <button type="button" data-a="sit" aria-label="Sit or stand">⌂<small>Sit</small></button>
-    <button type="button" data-a="view" aria-label="Switch camera">◎<small>View</small></button>`;
+    <button type="button" data-a="emote" aria-label="Emotes" aria-expanded="false">☺<small>Emote</small></button>
+    <button type="button" data-a="view" aria-label="Switch camera">◎<small>View</small></button>
+    <div id="emote-menu" class="card" hidden>
+      <button type="button" data-e="wave">👋<small>Wave</small></button>
+      <button type="button" data-e="clap">👏<small>Clap</small></button>
+      <button type="button" data-e="cheer">🙌<small>Cheer</small></button>
+      <button type="button" data-e="nod">🙂<small>Nod</small></button>
+      <button type="button" data-e="dance">💃<small>Dance</small></button>
+    </div>`;
   document.body.appendChild(pad);
+  if (window.I18N) { window.I18N.apply(pad); window.I18N.apply(padBtn); }
   pad.addEventListener("pointerdown", e => e.stopPropagation());
+  const emoteMenu = pad.querySelector("#emote-menu"), emoteBtn = pad.querySelector('[data-a="emote"]');
   pad.addEventListener("click", e => {
-    const a = e.target.closest("button")?.dataset.a;
+    const b = e.target.closest("button");
+    if (b && b.dataset.e) { emote(b.dataset.e); emoteMenu.hidden = true; emoteBtn.setAttribute("aria-expanded", "false"); return; }
+    const a = b?.dataset.a;
+    if (a === "emote") { emoteMenu.hidden = !emoteMenu.hidden; emoteBtn.setAttribute("aria-expanded", String(!emoteMenu.hidden)); }
     if (a === "jump") jump();
     if (a === "run") { running = !running; e.target.closest("button").setAttribute("aria-pressed", String(running)); }
     if (a === "hand") toggleHand();
@@ -125,9 +175,13 @@ async function start() {
   ring.id = "rpg-ring";
   if (W.device.touch) document.body.appendChild(ring);
   const help = document.querySelector(".help");
+  const fil = window.I18N && window.I18N.lang === "fil";
   if (help) help.innerHTML = W.device.touch
-    ? "Left thumb: move · right thumb: look · buttons: jump, run, raise hand, sit, camera"
-    : "<kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd> move · drag to look · <kbd>Shift</kbd>/<kbd>R</kbd> run · <kbd>Space</kbd> jump · <kbd>C</kbd> sit · <kbd>H</kbd> raise hand · <kbd>V</kbd> camera";
+    ? (fil ? "Kaliwang hinlalaki: gumalaw · kanan: tumingin · mga button: talon, takbo, kamay, upo, emote, tanaw"
+      : "Left thumb: move · right thumb: look · buttons: jump, run, raise hand, sit, emotes, camera")
+    : fil
+      ? "<kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd> gumalaw · i-drag para tumingin · <kbd>Shift</kbd>/<kbd>R</kbd> takbo · <kbd>Space</kbd> talon · <kbd>C</kbd> upo · <kbd>H</kbd> magtaas ng kamay · <kbd>V</kbd> tanaw · <kbd>E</kbd> gamitin / kausapin · <kbd>1</kbd>–<kbd>5</kbd> kaway, palakpak, hiyaw, tango, sayaw · <kbd>M</kbd> menu · <kbd>G</kbd> pumunta · <kbd>J</kbd> gawain"
+      : "<kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd> move · drag to look · <kbd>Shift</kbd>/<kbd>R</kbd> run · <kbd>Space</kbd> jump · <kbd>C</kbd> sit · <kbd>H</kbd> raise hand · <kbd>V</kbd> camera · <kbd>E</kbd> use / talk · <kbd>1</kbd>–<kbd>5</kbd> wave, clap, cheer, nod, dance · <kbd>M</kbd> menu · <kbd>G</kbd> go to · <kbd>J</kbd> tasks";
 
   function toggleView() {
     thirdPerson = !thirdPerson;
@@ -172,6 +226,7 @@ async function start() {
   W.player = {
     active: true,
     get running() { return running; },
+    get self() { return self; },
     update(dt) {
       // external teleports (go-to buttons, teacher Gather)
       if (Math.abs(me.x - lastX) > 0.8 || Math.abs(me.z - lastZ) > 0.8) { teleportBody(); if (!me.locked) me.sitting = false; }
