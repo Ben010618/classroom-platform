@@ -23,6 +23,8 @@ One world definition ([`world.js`](world.js)) produces two things:
 | | |
 | :--- | :--- |
 | **Characters** | Realistic **male and female bodies** from Quaternius *Universal Base Characters* (**CC0**) with real eyes, eyebrows and 5 hairstyles, and **16 animations** retargeted bone by bone from the *Universal Animation Library* (idle, talk, walk, jog, sprint, jump, sit, interact, pick up, dance…, with fingers). Skin tone (5) and uniforms are painted over the body texture by a shader (`character.js`); the **skirt** (skinned to the legs), **polo collar**, **school ID lanyard** and **backpack** are 3D. Faces **blink** and the mouth moves while talking. The torso is smoothed at build time so uniforms don't show the athletes' muscles, and the male face is cleaned of stubble. Built by `node fetch-characters.mjs --ubc "<Universal Base Characters[Standard].zip>"` (about 630 KB per body, 2.1 MB with hair). |
+| **Ready-made characters** | **16 school-appropriate characters** from Quaternius *Ultimate Modular Men / Women* (**CC0**): casual, hoodie, business suit, farmer, worker, beach, adventurer, astronaut, king, formal, medieval, witch (the costume ones suit school plays and events). Same 16 animations (retargeted, feet following the ankles of their IK rig), one draw call each, skin tone and hair colour still apply. Loaded only when someone uses them (~600 KB each). **No weapons or military outfits:** the SWAT, Soldier, Sci-fi (gun-like device) and both Punk characters are excluded in `fetch-characters.mjs`, and the packs' props (swords, guns) are removed at build time. |
+| **Character picker** | Menu → **Change my character**: ‹ › through "School student (customise)" and the 16 characters, with a **spinning preview** you can drag to turn. Staff in the school use them too (principal, librarian, gardener, canteen, maintenance). |
 | **Emotes** | **1–5** or the ☺ button: wave, clap, cheer, nod, dance. Synced in multiplayer. |
 | **Physics** | **[Rapier](https://rapier.rs) 0.19.3** (Apache-2.0) kinematic character controller: gravity, jumping, sliding along walls, solid desks, trees and fences, and **climbing the stage stairs** (a hidden ramp collider). Falls back to simple collision if it can't load. |
 | **Camera** | Third-person orbit (drag to look) that pulls in and never crosses walls, windows or doors. **V** switches to first person. |
@@ -42,6 +44,27 @@ One world definition ([`world.js`](world.js)) produces two things:
 New places: **Grade 8 room**, **Science Laboratory**, **ICT Room** (rooms 2–4 now open, box furniture so they stay cheap), and an **Administration** building behind the school with the **Principal's office** and **comfort rooms**. Also water dispensers, a school bell, sports equipment on the court, and garden beds at three growth stages with tomatoes and eggplants.
 
 The loading screen shows a progress bar and tips, and a **controls guide** appears on the first visit (again from Menu → Settings).
+
+## Nature (`nature.js`)
+
+Real plants from two Quaternius **CC0** packs, built into one 370 KB file (`assets/nature/nature.glb`) by `fetch-nature.mjs`:
+
+- **Coconut palms** lining the driveway and the perimeter, broadleaf **shade trees**, **bamboo** clumps, a **calamansi** tree by the canteen.
+- Flowering **bushes** and **flower beds** around the flag plaza and gate, ferns and leafy plants along the canteen, library and court, rocks.
+- The **Gulayan sa Paaralan** has real crops: tomato, pechay, corn, kalabasa, carrot and watermelon. **Watering a bed grows it** to the next stage.
+- Leaves and fronds sway in the wind.
+
+Cost control: trees are GPU-instanced, and beyond 25 m each one is swapped for an **impostor** (a picture of the tree rendered at load, on two crossed planes, 4 triangles). Small plants are merged per 40 m chunk and hidden beyond 70 m, the garden is one mesh. Typical outdoor views: 80–130 draw calls, 80–115k triangles. Simple graphics keeps the original low-poly trees (and the Hubs export always does).
+
+### Rebuilding the character and nature assets
+
+Download the packs from quaternius.com / itch.io (free), then:
+```bash
+npm ci
+node fetch-characters.mjs --ubc "<Universal Base Characters[Standard].zip>" --men "<Ultimate Modular Men Pack>" --women "<Ultimate Modular Women Pack>"
+node fetch-nature.mjs --megakit "<Stylized Nature MegaKit[Standard]>" --crops "<Nature Crops Pack>"
+```
+Each `fetch-characters` pack argument is optional. FBX files are converted with the bundled FBX2glTF (`fbx2gltf` dev dependency). `_chartest.html#mod` and `_naturetest.html` (git-ignored dev pages) show every character and model for a quick visual check.
 
 ## Environment (`env.js`)
 

@@ -8,6 +8,11 @@
 // so the caller can drop in real models (the preview does; the Hubs export keeps the box versions for now).
 (typeof window !== "undefined" ? window : globalThis).buildWorld = function buildWorld(THREE, opts = {}) {
   const realFurniture = !!opts.realFurniture;
+  // opts.realNature: trees, plants and garden crops become `nature` placements for real models (nature.js)
+  // instead of the low-poly geometry here. The Hubs export and Simple graphics keep the geometry.
+  const realNature = !!opts.realNature;
+  const nature = []; // { kind, x, z, ry, s, y? }
+  const beds = [];   // garden beds: { x, z, crop, stage, spots: [[x, z], …] } (realNature only)
   const props = []; // { kind, x, y, z, ry }
   const ramps = []; // { x0, x1, z0, z1, y0, y1 }: hidden slopes over stairs, rising toward +x (physics only)
   const trees = []; // { x, z, r } for soft ground shadows in the preview
@@ -506,6 +511,16 @@
     if (x > 34 && x < 70 && z > -20 && z < 8) return;        // keep the court clear
     const h = 2.4 + (i % 3) * 0.5;
     const r = 1.5 + (i % 4) * 0.3;
+    if (realNature) {
+      // perimeter: mostly coconut palms with a broadleaf tree every fourth spot; inner spots are shade trees
+      const shade = i >= 46 || i % 4 === 0;
+      const kind = shade ? (i % 2 ? "CommonTree_1" : "CommonTree_3") : (i % 2 ? "PalmTree_4" : "PalmTree_3");
+      const s = shade ? 0.85 + (i % 4) * 0.08 : kind === "PalmTree_4" ? 2.5 + (i % 3) * 0.25 : 3.2 + (i % 3) * 0.3;
+      nature.push({ kind, x, z, ry: i * 1.7, s });
+      colliders.push([x - 0.35, z - 0.35, x + 0.35, z + 0.35, 0, 3]);
+      trees.push({ x, z, r: shade ? 2.6 * s : 1.6 });
+      return;
+    }
     cyl("trunk", x, 0, z, 0.24, h + 0.6, 7, 0.14);
     // Crown: a cluster of 4 smooth blobs (reads as a mango/acacia canopy, still ~320 triangles)
     const blobs = [[0, 0.9, 0, 1], [0.75, 0.55, 0.3, 0.72], [-0.65, 0.6, -0.35, 0.75], [0.1, 1.45, -0.5, 0.65]];
@@ -557,6 +572,15 @@
     const bx = G.x - 7.5 + (bi % 3) * 7.5, bz = G.z - 2.6 + Math.floor(bi / 3) * 5.2;
     box("wood", bx, 0, bz, 5.6, 0.32, 2.2, 0, true);           // raised bed frame
     box("soil", bx, 0.3, bz, 5.3, 0.05, 1.9);
+    spots["bed" + bi] = { x: bx, y: 0.6, z: bz + 1.4, r: 1.8, bed: bi };
+    if (realNature) {
+      // real crops: tomato, pechay, corn, kalabasa, carrot, watermelon at different growth stages (watering grows them)
+      const crop = ["Tomato", "Lettuce", "Corn", "Pumpkin", "Carrot", "Watermelon"][bi];
+      const bedSpots = [];
+      for (let row = 0; row < 2; row++) for (let k = 0; k < 4; k++) bedSpots.push([bx - 1.95 + k * 1.3, bz - 0.45 + row * 0.9]);
+      beds.push({ x: bx, z: bz, y: 0.33, crop, stage: [2, 3, 4, 3, 2, 4][bi], spots: bedSpots });
+      continue;
+    }
     // growth stages per bed: seedlings, young plants, then fruiting tomatoes / eggplants
     const stage = bi % 3;
     for (let row = 0; row < 3; row++) {
@@ -571,7 +595,6 @@
         }
       }
     }
-    spots["bed" + bi] = { x: bx, y: 0.6, z: bz + 1.4, r: 1.8 };
   }
   // watering can by the garden sign
   cyl("waterBlue", G.x + 2.6, 0, G.z + 5.4, 0.13, 0.26, 10, 0.11);
@@ -646,6 +669,40 @@
   box("metal", G.x - 1.9, 0, G.z + 5.96, 0.08, 1.7, 0.08);
   box("metal", G.x + 1.9, 0, G.z + 5.96, 0.08, 1.7, 0.08);
 
+  // ============================== PLANTS (real models only: nature.js) ==============================
+  if (realNature) {
+    const plant = (kind, x, z, s = 1, ry = (x * 7.1 + z * 3.3) % 6.28, solid = 0) => {
+      nature.push({ kind, x, z, ry, s });
+      if (solid) colliders.push([x - solid, z - solid, x + solid, z + solid, 0, 1.2]);
+    };
+    // coconut palms lining the driveway from the gate
+    for (let z = 30; z <= 58; z += 7) { plant("PalmTree_4", -4.6, z, 2.6, z); plant("PalmTree_4", 4.6, z + 3.5, 2.5, z + 1); }
+    for (const [x, z] of [[-4.6, 30], [4.6, 33.5], [-4.6, 37], [4.6, 40.5], [-4.6, 44], [4.6, 47.5], [-4.6, 51], [4.6, 54.5], [-4.6, 58], [4.6, 61.5]]) {
+      colliders.push([x - 0.3, z - 0.3, x + 0.3, z + 0.3, 0, 3]);
+      trees.push({ x, z, r: 1.6 });
+    }
+    // bamboo clumps in the corners of the grounds
+    for (const [cx0, cz0] of [[-63, -62], [62, -61], [-63, 44], [62, 46], [-30, -50]]) {
+      for (let k = 0; k < 6; k++) plant(k % 2 ? "Bamboo_4" : "Bamboo_3", cx0 + Math.cos(k * 1.9) * 1.1, cz0 + Math.sin(k * 1.9) * 1.1, 2.4 + (k % 3) * 0.3, k);
+      colliders.push([cx0 - 1.4, cz0 - 1.4, cx0 + 1.4, cz0 + 1.4, 0, 4]);
+    }
+    // flowering bushes and flower beds: flag plaza, canteen, library, court, gate
+    for (const [x, z] of [[-5.2, 6.6], [5.2, 6.6], [-5.2, 13.4], [5.2, 13.4]]) plant("Bush_Common_Flowers", x, z, 0.75, x + z, 0.55);
+    for (const [x, z] of [[-3.2, 14.8], [3.2, 14.8], [-3.2, 5.2], [3.2, 5.2]]) { plant("Flower_3_Group", x, z, 0.55); plant("Flower_4", x + 0.7, z, 0.9); plant("Flower_3", x - 0.7, z, 1.0); }
+    // rows in front of the canteen, library and court: light leafy plants and ferns (bushes are ~1.3k triangles each)
+    for (let x = -55; x <= -43; x += 2.4) if (Math.abs(x - -49) > 1.4) { plant("Plant_1_Big", x, 6.2, 0.5, x); plant("Flower_3", x + 0.8, 6.4, 1.0); }
+    for (let x = -55; x <= -43; x += 2.4) if (Math.abs(x - -49) > 1.4) plant("Fern_1", x, -12.8, 0.6, x);
+    for (let z = -12; z <= 0; z += 4) plant("Plant_1_Big", 34.2, z, 0.55, z);   // the court walkway starts at z 2
+    for (const x of [-8.2, 8.2]) { plant("Flower_3_Group", x, 67.6, 0.5); plant("Bush_Common_Flowers", x + Math.sign(x) * 1.6, 67.8, 0.7, x, 0.5); }
+    for (const x of [-15, -6, 5, 13]) plant("Flower_3_Group", x, -2.4, 0.4);   // along the veranda edge, clear of the bins
+    // calamansi trees by the canteen, coconuts for buko juice on the counter
+    plant("Orange_4", -58.6, 9.5, 1.2, 0.3, 0.4); plant("Orange_4", -40.5, 9.0, 1.1, 2.2, 0.4);
+    for (const x of [-51.4, -51.0]) nature.push({ kind: "Coconut_Half", x, z: -0.5, y: 1.0, ry: x, s: 0.22 });
+    // rocks and ferns at the edges of the garden and under shade trees
+    for (const [x, z, k] of [[-19, -44.5, 1], [5.5, -46.5, 2], [-19, -31, 2], [-38, 13, 1], [-38, -23, 2], [32, 26, 1]]) plant("Rock_Medium_" + k, x, z, 0.32, x, 0.5);
+    for (const [x, z] of [[-12.5, 23.5], [15.5, 23], [-34.5, 13.5], [-34.6, -22.5], [31.4, 27.2], [-24.5, 41], [25.4, 49]]) { plant("Fern_1", x, z, 0.8); plant("Plant_1_Big", x + 1.2, z - 0.8, 0.5); }
+  }
+
   // ============================== SPAWN + GO-TO POINTS ==============================
   [[-3, 64], [-1, 64], [1, 64], [3, 64]].forEach(([x, z], i) => marker("spawn-0" + (i + 1), x, 0, z, 0, spawnWaypoint));
   marker("flag-plaza", 0, 0, 19, 0, gotoWaypoint);
@@ -719,5 +776,5 @@
     { x0: -47, z0: -1, x1: -33, z1: 2, kind: "path" }, { x0: -41.5, z0: -26, x1: -38.5, z1: 0, kind: "path" },
     { x0: -18, z0: -38.7, x1: 6, z1: -37.3, kind: "path" }, { x0: -7.5, z0: -35, x1: -4.5, z1: -27, kind: "path" },
     { x0: -35, z0: -3, x1: 31, z1: 11, kind: "plaza" });
-  return { scene, colliders, places, markers, materials: M, props, signs, trees, ramps, doors, spots, areas, map };
+  return { scene, colliders, places, markers, materials: M, props, signs, trees, ramps, doors, spots, areas, map, nature, beds };
 };

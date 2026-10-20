@@ -23,7 +23,7 @@ const store = {
 };
 
 // ---------------------------------------------------------------- join panel + appearance editor
-const look = { ...A.DEFAULT_LOOK, ...store.get("world.look", {}) };
+const look = { ...A.DEFAULT_LOOK, model: "", ...store.get("world.look", {}) };
 if (!look.body && window.Characters) look.body = window.Characters.bodyKind(look);
 if (!look.body) look.body = look.outfit === "blouse" ? "female" : "male";
 const panel = $("mp-panel");
@@ -82,20 +82,50 @@ let pvAvatar = null;
 const hd = () => window.Characters && window.Characters.ready() && !W.simple;
 function refreshPreview() {
   if (pvAvatar) pvScene.remove(pvAvatar);
-  pvAvatar = hd() ? window.Characters.create(THREE, look, { noTag: true }) : A.buildAvatar(THREE, look, { noTag: true });
+  pvAvatar = hd() ? window.Characters.create(THREE, look, { noTag: true }) : A.buildAvatar(THREE, { ...look, model: "" }, { noTag: true });
   pvScene.add(pvAvatar);
 }
+
+// ---------- character picker: the customisable student, then the ready-made characters (HD devices)
+const tr = s => (window.I18N ? window.I18N.t(s) : s);
+const pickList = () => [{ id: "", label: "School student (customise)" }, ...(hd() && window.Characters.models ? window.Characters.models() : [])];
+function renderPicker() {
+  const list = pickList(), i = Math.max(0, list.findIndex(m => m.id === (look.model || "")));
+  $("pv-pick").hidden = list.length < 2;
+  $("pv-name").textContent = tr(list[i].label);
+  $("pv-count").textContent = ` ${i + 1} / ${list.length}`;
+  document.querySelector(".mp-form").classList.toggle("ready-made", !!look.model);
+  // warm the neighbours so the arrows feel instant
+  for (const d of [-1, 1]) { const n = list[(i + d + list.length) % list.length]; if (n.id && window.Characters.preload) window.Characters.preload(THREE, n.id); }
+}
+const step = d => {
+  const list = pickList(), i = Math.max(0, list.findIndex(m => m.id === (look.model || "")));
+  look.model = list[(i + d + list.length) % list.length].id;
+  renderPicker(); refreshPreview();
+};
+$("pv-prev").addEventListener("click", () => step(-1));
+$("pv-next").addEventListener("click", () => step(1));
 refreshPreview();
-window.addEventListener("characters-ready", refreshPreview);
-let pvSpin = 0, pvLast = performance.now();
+renderPicker();
+window.addEventListener("characters-ready", () => { refreshPreview(); renderPicker(); });
+
+// ---------- spinning preview: turns on its own; drag to turn it yourself
+let pvAngle = 0, pvLast = performance.now(), drag = null, idleFor = 0;
+pv.addEventListener("pointerdown", e => { pv.setPointerCapture(e.pointerId); drag = { x: e.clientX }; });
+pv.addEventListener("pointermove", e => { if (!drag) return; pvAngle += (e.clientX - drag.x) * 0.012; drag.x = e.clientX; idleFor = 0; });
+const endDrag = () => { drag = null; };
+pv.addEventListener("pointerup", endDrag); pv.addEventListener("pointercancel", endDrag);
 function drawPreview(now) {
   if (!panel.hidden) {
     const dt = Math.min(0.05, ((now || pvLast) - pvLast) / 1000);
     const r = pv.getBoundingClientRect();
     pvRenderer.setSize(r.width, r.height, false);
     pvCam.aspect = r.width / r.height; pvCam.updateProjectionMatrix();
-    pvSpin += 0.01; pvAvatar.rotation.y = Math.sin(pvSpin) * 0.6;   // avatars face −Z, toward the camera
+    idleFor += dt;
+    if (!drag && idleFor > 1.2) pvAngle += dt * 0.9;       // a full turn every ~7 s; pauses briefly after a drag
+    pvAvatar.rotation.y = pvAngle;                           // avatars face −Z, toward the camera, at angle 0
     pvAvatar.userData.tick(dt);
+    $("pv-loading").hidden = pvAvatar.userData.loaded !== false;
     pvRenderer.render(pvScene, pvCam);
   }
   pvLast = now || pvLast;
