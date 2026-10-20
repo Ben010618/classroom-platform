@@ -2,7 +2,7 @@
 # One-time GitHub setup for the 3D classroom project. Safe to read top to bottom; each step is labelled.
 # Prerequisite (once, opens a browser):  gh auth refresh -h github.com -s workflow,project
 # Run from the repo root (C:\dev\classroom\classroom-platform):  bash scripts/github-setup.sh
-# Idempotent for steps 1-2; steps 3+ create issues, so run them once.
+# Safe to re-run: existing issues (matched by task number, e.g. "3.1" or "GATE 2") and the board are skipped.
 set -euo pipefail
 
 OWNER=Ben010618
@@ -27,7 +27,8 @@ lbl phase-0 "BFD4F2" "Prep"
 lbl phase-1 "C5DEF5" "Stand up & validate"
 lbl phase-2 "D4C5F9" "Scene & performance"
 lbl phase-3 "FEF2C0" "Teacher HUD & features"
-lbl phase-4 "F9D0C4" "Hardening & pilot"
+lbl phase-4 "F9D0C4" "Hardening & staff pilot"
+lbl phase-4b "FAD8C7" "Student pilot (after DPO approval)"
 lbl gate    "B60205" "Go/no-go checkpoint"
 lbl ops     "0E8A16" "Ops lead"
 lbl dev     "1D76DB" "Head programmer"
@@ -35,7 +36,12 @@ lbl privacy "5319E7" "Privacy owner / DPO"
 lbl needs-you "FBCA04" "Needs an account, purchase or signature"
 
 echo "   issues (one per roadmap task)"
-issue() { gh issue create -R "$REPO" -t "$1" -l "$2" -b "$3" >/dev/null && echo "   + $1"; }
+EXISTING=$(gh issue list -R "$REPO" --state all --limit 500 --json title --jq '.[].title')
+issue() {
+  local key; key=$(sed -E 's/^(GATE [0-9]+|[0-9]+[a-z]?\.[0-9]+)[ :].*/\1/' <<<"$1")
+  if grep -qE "^${key//./\\.}( |:)" <<<"$EXISTING"; then echo "   = $key exists"; return; fi
+  gh issue create -R "$REPO" -t "$1" -l "$2" -b "$3" >/dev/null && echo "   + $1"
+}
 issue "0.2 Send letters to SDO ICT unit and DPO"        "phase-0,privacy,needs-you" "Drafts are on the local PC (OneDrive KU/classroom-platform/docs/letters), not in git. Fill placeholders, principal notes, send."
 issue "0.5 Get reference devices (budget Android + DepEd lab laptop)" "phase-0,ops,needs-you" "Android: 3–4 GB RAM, Helio G-class, Chrome. Laptop: Celeron-class 4 GB. See BLUEPRINT §4."
 issue "0.6 Register domain"                            "phase-0,ops,needs-you" "Ask the Division about a *.edu.ph subdomain first; otherwise a project domain."
@@ -48,24 +54,36 @@ issue "1.3 Measure mobile data per student (Lecture vs open discussion)" "phase-
 issue "GATE 1: Stable CE + both devices connect from mobile data and school network" "phase-1,gate" "No feature work until this passes."
 issue "2.1 Classroom scene: podium, seat waypoints, 4 pods with audio zones, podium mic" "phase-2,dev" "Blender add-on. Bake lighting. Draco + KTX2."
 issue "2.2 CI asset budget check (gltf-transform)"      "phase-2,dev" "Fail if > 15 MB, > 150k tris, textures > 2048, > 120 meshes. Prompt B′ in BLUEPRINT."
-issue "GATE 2: ≥45 FPS (phone ≥30 Lite) with 10 avatars, scene < 8 MB" "phase-2,gate" ""
+issue "GATE 2: 30 avatars — laptop ≥45 FPS, phone ≥30 FPS Lite, scene < 8 MB" "phase-2,gate" ""
 issue "3.1 Teacher HUD panel (mute all, locks, kick)"  "phase-3,dev" "Build in Storybook first (Codespaces). Reuse existing permissions/mute APIs."
 issue "3.2 Gather All + Seat Lock (classroom message protocol)" "phase-3,dev" "See hubs/src/classroom/README.md."
-issue "3.3 Lecture Mode button (mute learners + gather + podium)" "phase-3,dev" "Also the mobile-data saver."
+issue "3.3 Lecture Mode button (mute learners + gather + podium)" "phase-3,dev" "Also the mobile-data saver. Grants the teacher amplify_audio for the built-in podium megaphone; no megaphone code."
 issue "3.4 Hand-raise queue on HUD (time-ordered)"     "phase-3,dev" "Presence hand_raised already exists."
 issue "3.5 Pre-join card: Lite mode, mic check, privacy/screenshot rule" "phase-3,dev" "Copy the FrameVR lobby flow (BLUEPRINT §1A)."
-issue "3.6 Filipino locale (fil.json)"                 "phase-3,dev" "No fil locale upstream."
-issue "3.7 PPT → PDF converter sidecar"                "phase-3,ops" "LibreOffice headless."
 issue "GATE 3: New teacher runs a 5-min lesson from the HUD alone" "phase-3,gate" ""
 issue "4.1 Backups + restore drill, monitoring, alerts" "phase-4,ops" ""
-issue "4.2 Load test 30 clients per room"              "phase-4,ops" ""
-issue "4.3 PIA + Child PIA, consent forms, privacy notices, breach runbook" "phase-4,privacy,needs-you" "With the Division DPO. BLUEPRINT §6."
-issue "4.4 Pilot lesson + FrameVR head-to-head"        "phase-4,dev,ops" "Fill in the §1A table."
+issue "4.2 Load test 30 clients per room"              "phase-4,ops" "Headless clients from a separate machine; watch SFU CPU and egress."
+issue "4.3 PIA + Child PIA, consent forms, privacy notices, breach runbook" "phase-4,privacy,needs-you" "With the Division DPO. BLUEPRINT §6. Blocks Phase 4b only."
+issue "4.4 Staff pilot (adults) + FrameVR head-to-head" "phase-4,dev,ops" "Fill in the §1A table."
+issue "4.5 Real-device capacity session (25–30 people, one room)" "phase-4,ops" "Teachers and volunteers. Record FPS on reference devices and audio dropouts."
+issue "4.6 Practice upstream subtree pull"             "phase-4,dev" "Record hours and conflicting files. Feeds Gate 4."
 issue "GATE 4: Stay on Hubs or start the custom LiveKit build" "phase-4,gate" "Criteria in BLUEPRINT §7."
+issue "4b.1 Student pilot (after DPO approval + consent)" "phase-4b,privacy" "Same measurements as the staff pilot."
+issue "4b.2 Filipino locale (fil.json)"                "phase-4b,dev" "No fil locale upstream. Needed for learners."
+issue "4b.3 PPT → PDF converter sidecar"               "phase-4b,ops" "LibreOffice headless. Teachers upload PDFs until then."
+issue "4b.4 3D vs 2D comparison (exit quiz, participation, data)" "phase-4b,dev" "Same teacher, same topic, matched groups. BLUEPRINT §7 Phase 4b."
+issue "3.8 Seat token reconnect + 'reconnecting' badge" "phase-3,dev" "BLUEPRINT §5.2."
+issue "3.9 Report-abuse button → teacher HUD + moderation log" "phase-3,dev,privacy" "BLUEPRINT §6."
+issue "3.10 Accessibility defaults (snap turn, vignette, tap-to-teleport, chat on)" "phase-3,dev" "BLUEPRINT §4A."
+issue "0.10 Name a person for every role in BLUEPRINT §9" "phase-0,needs-you" "A role without a name is a risk (risk 3b)."
 
 echo "== 4. Project board (needs the 'project' scope)"
-NUM=$(gh project create --owner "$OWNER" --title "3D Classroom Roadmap" --format json --jq .number)
-gh project link "$NUM" --owner "$OWNER" --repo "$REPO"
+NUM=$(gh project list --owner "$OWNER" --format json --jq '.projects[] | select(.title=="3D Classroom Roadmap") | .number' | head -1)
+if [ -z "$NUM" ]; then
+  NUM=$(gh project create --owner "$OWNER" --title "3D Classroom Roadmap" --format json --jq .number)
+  gh project link "$NUM" --owner "$OWNER" --repo "$REPO"
+fi
+# item-add is a no-op for issues already on the board
 gh issue list -R "$REPO" --limit 100 --json url --jq '.[].url' | while read -r url; do
   gh project item-add "$NUM" --owner "$OWNER" --url "$url" >/dev/null
 done
