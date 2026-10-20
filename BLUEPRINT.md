@@ -60,7 +60,7 @@ Many features in v1's wishlist **already exist in Hubs**, so we configure them i
 
 **Known costs of choosing Hubs:**
 1. The deployment needs Kubernetes, which adds ops weight.
-2. The client is large and complex (the build now uses Node 22, confirmed in the Dockerfile). Builds run in CI using the official `custom-docker-build-push` workflow.
+2. The client is large and complex (the build now uses Node 22, confirmed in the Dockerfile). Builds run in CI using our own `.github/workflows/classroom-build.yml` (on the `ci-workflows` branch until it's pushed), which builds `ghcr.io/ben010618/classroom-hubs` with `GITHUB_TOKEN`. The upstream workflows, including `custom-docker-build-push`, are not used.
 3. The codebase is a mix of A-Frame and a newer bitECS architecture, so customisations must follow its patterns.
 4. The MPL-2.0 license means **files we modify must stay open source**. New files we add can stay private. That is acceptable.
 
@@ -122,7 +122,7 @@ We inspected our current Frame on 2026-10-19 using a headless browser and its ne
 ```mermaid
 graph TD
     subgraph Client["Browser (Android phone / lab laptop / Quest)"]
-        HC[Custom Hubs Client (hubs/ subtree)<br/>+ Teacher HUD add-on]
+        HC["Custom Hubs Client (hubs/ subtree)<br/>+ Teacher HUD add-on"]
     end
     subgraph K3s["Single-node K3s (Hetzner)"]
         ING[Ingress + Let's Encrypt]
@@ -146,11 +146,11 @@ graph TD
     ST --> BK
 ```
 
+**Rules for customising the code (so upstream updates stay mergeable):**
 1. **One repo of our own** (`Ben010618/classroom-platform`). The Hubs client lives in `hubs/` as a git subtree. Keep our changes **thin**: all classroom features go in `hubs/src/classroom/` (new files stay under our control even with MPL).
-1. Keep the fork **thin**. Put all classroom features in a new `src/classroom/` folder (new files stay under our control even with MPL).
+2. Hook into existing systems through the smallest possible edits, and list each one in `UPSTREAM_PATCHES.md`.
 3. Pull upstream `Hubs-Foundation/hubs` once a month with `git subtree pull --prefix hubs hubs-upstream master --squash`.
-3. Rebase onto upstream `Hubs-Foundation/hubs` once a month.
-4. Build the custom client into a Docker image in CI, then swap the image tag in the CE deployment yaml.
+4. Build the custom client into a Docker image in CI (`classroom-build.yml`), then swap the image tag in the CE deployment yaml.
 
 ---
 
@@ -177,9 +177,10 @@ graph TD
 | Room `.glb` size | **< 8 MB** | 15 MB | Check in CI. Students pay for every MB on prepaid data, and 30 lab devices on one school link download it all at once. |
 | Textures | 1024² KTX2 | 2048² (boards only) | `gltf-transform` pipeline |
 | Draw calls | < 80 | 120 | Merge meshes, use texture atlases |
-| Frame rate | **≥ 45 FPS** on the reference devices | **30 FPS floor** | Measure on real hardware in Phase 2 |
+| Frame rate, lab laptop | **≥ 45 FPS** | 30 FPS floor | Measure on real hardware with 30 avatars (Gate 2) |
+| Frame rate, budget phone | **≥ 30 FPS in Lite mode** | 25 FPS floor | Measure on real hardware with 30 avatars (Gate 2) |
 | Lighting | Baked lightmaps | No real-time shadows | Bake in Blender |
-| Students per room | 25–30 | 35 | Load test in Phase 4 |
+| Students per room | 25–30 | 35 | Server load test **and** a real-device session with 25–30 people (Phase 4). Raise the Hubs room size limit in the admin panel to match. |
 
 **Reference devices** (get them on day 1; if it isn't tested on these, it isn't done):
 1. **A budget Android phone** (₱5–7k class, 3–4 GB RAM, MediaTek Helio G-series) running Chrome, which is the most common student device.
@@ -233,7 +234,7 @@ So the defaults are: **students join muted, video tiles are off, and audio is on
 - **Uptime:** an external probe of the homepage and TURN, with alerts to the on-call phone.
 - **Logging:** keep **14 days maximum** and strip IP addresses after 7 days (data minimisation under RA 10173).
 - **Backups:** nightly, with a **restore drill tested in Phase 4**, not assumed.
-- **Updates:** a monthly maintenance window outside school hours. Rebase on upstream, roll out to staging, then production.
+- **Updates:** a monthly maintenance window outside school hours. Pull upstream into the `hubs/` subtree, roll out to staging, then production.
 - **Staging:** a second namespace on the same node during the pilot. Split it onto its own node before going to production.
 
 ### 5.4 Scale-out path (after the pilot)
@@ -289,29 +290,36 @@ So the defaults are: **students join muted, video tiles are off, and audio is on
 ### Phase 2 — Classroom scene and performance (Days 8–12)
 - [ ] Build a low-poly classroom with a lecture zone, a podium waypoint, numbered seat waypoints and 4 breakout pods with **isolating Audio Zones**.
 - [ ] Bake lighting in Blender and export through the Hubs Blender add-on, using Draco + KTX2.
-- [ ] Add CI checks for the triangle, size and texture budgets.
-- **🚦 Gate 2:** Both reference devices hold **45 FPS or more** (phone: 30 FPS or more in Lite mode) with 10 avatars in the room, and the scene is **under 8 MB**.
+- [ ] Add CI checks for the triangle, size and texture budgets. The checker is built (`tools/asset-budget/`); its workflow `asset-budget.yml` waits on the `ci-workflows` branch with `classroom-build.yml` (issue 0.4).
+- **🚦 Gate 2:** With **30 avatars** in the room (the real class size, not 10), the lab laptop holds **45 FPS or more** and the budget phone holds **30 FPS or more in Lite mode**, and the scene is **under 8 MB**.
 
-### Phase 3 — Teacher HUD and custom features (Days 13–20)
+### Phase 3 — Teacher HUD and core features (Days 13–20)
+Only what a staff pilot needs. Estimates: HUD 3–4 days, Gather All 2–3 days, Seat Lock 2–3 days.
 - [ ] Teacher HUD panel: Mute All, Lock Spawn/Draw/Voice (using existing permissions), Kick.
 - [ ] Gather All and Seat Lock (custom broadcast messages with the role check).
-- [ ] Megaphone toggle (code version).
-- [ ] A hand-raise queue on the HUD, if Hubs doesn't already provide one.
-- [ ] PPT → PDF converter sidecar.
-- [ ] **Lecture Mode** (one HUD button: mute all learners, Gather to seats, Megaphone on). This is also the data saver.
+- [ ] Hand-raise queue on the HUD, sorted by time raised (presence `hand_raised` exists; the queue does not).
+- [ ] **Lecture Mode** (one HUD button: mute all learners, Gather to seats, grant the teacher `amplify_audio` so the built-in podium megaphone carries their voice). This is also the data saver.
 - [ ] Pre-join card copied from FrameVR, with Lite mode, mic check and the privacy/screenshot rule.
-- [ ] **Filipino translation** of the learner-facing UI (Hubs has an i18n system; check which locales exist and add `fil` if it's missing).
 - **🚦 Gate 3:** A teacher who has never used the platform can run a 5-minute lesson using only the HUD, without help.
 
-### Phase 4 — Hardening and pilot (Days 21–28)
+### Phase 4 — Hardening and staff pilot (Days 21–28)
+Adults only, so it doesn't wait for DPO approval or parent consent.
 - [ ] TLS, backups, a **restore drill**, monitoring and alerts, and turning off analytics.
-- [ ] **Load test:** 30 simulated clients per room (headless browsers with fake audio), watching SFU CPU and egress.
-- [ ] **Pilot:** a 15-minute mock lesson with 1 teacher and 5–8 students who have signed parent consent forms, using a mix of **phones on mobile data** and **lab laptops on the school network**.
-- [ ] Measure join time (target under 30 s from link to classroom), FPS, audio dropouts and a teacher friction survey.
+- [ ] **Server load test:** 30 simulated clients per room (headless browsers with fake audio, run from a separate machine), watching SFU CPU and egress.
+- [ ] **Real-device capacity session:** 25–30 teachers and volunteers on real phones and laptops in one room for 15 minutes. Record FPS on the reference devices and audio dropouts.
+- [ ] **Staff pilot:** a 15-minute mock lesson with 1 teacher and 5–8 adult "students", using a mix of **phones on mobile data** and **lab laptops on the school network**.
+- [ ] Measure join time (target under 30 s from link to classroom), FPS, audio dropouts, mobile data per hour and a teacher friction survey.
 - [ ] **Run the same lesson in FrameVR `team-ric`** (8-person group) on the same phones and laptops and fill in the head-to-head table in §1A.
+- [ ] **Practice upstream pull:** run `git subtree pull` against current upstream on a branch and record the hours spent and the files with conflicts.
 - **🚦 Gate 4 — the big decision:** stay on Hubs, or start the custom LiveKit + Colyseus build?
-  - **Stay on Hubs** if customisation took less than 1.5× the estimate and the upstream rebase was painless.
-  - **Start the custom build** if it fights us on the phone or laptop frame rate, the UI, or the patch count (more than about 25 edited upstream files).
+  - **Stay on Hubs** if Phase 3 took less than 1.5× its estimate, the practice upstream pull took under one working day, and `UPSTREAM_PATCHES.md` lists 25 or fewer upstream files.
+  - **Start the custom build** if Gate 2's frame rates fail at 30 avatars, the practice pull takes more than a day, or more than 25 upstream files have been edited.
+
+### Phase 4b — Student pilot (after DPO approval)
+Starts when the DPO has approved the pilot and the PIA, and consent forms are signed. Do not tie it to a calendar day.
+- [ ] Pilot lesson with 1 teacher and 5–8 learners who have signed parent consent forms, same device mix and measurements as the staff pilot.
+- [ ] **Filipino translation** of the learner-facing UI (Hubs has an i18n system; add `fil` if it's missing). Needed for learners, not for the staff pilot.
+- [ ] PPT → PDF converter sidecar. Until then, teachers upload PDFs.
 
 ### Phase 5 (optional, after the pilot) — Custom-stack track
 Run it in parallel, behind the Hubs pilot, and never replace a working system mid-term:
@@ -330,7 +338,7 @@ Run it in parallel, behind the Hubs pilot, and never replace a working system mi
 | 2 | Budget Android phones below 30 FPS | **High** | Critical | Reference phone, Lite mode, CI budget checks, Gate 2 |
 | 2b | Mobile data cost stops learners joining | **High** | High | Lecture Mode default, 8 MB scene, audio from nearby speakers only, report data per lesson to teachers |
 | 2c | Brownouts or signal drops mid-lesson | High | Medium | Auto-reconnect to seat, "reconnecting" badge, short lesson segments |
-| 2d | DPO approval or consent forms delay the pilot | Medium | High | Start the paperwork in Phase 0, in parallel with engineering |
+| 2d | DPO approval or consent forms delay the pilot | **High** | High | Start the paperwork in Phase 0. The staff pilot (Phase 4) needs no learner consent; the student pilot (Phase 4b) waits for approval |
 | 3 | Kubernetes ops overload a small team | Medium | High | Single-node K3s, one runbook, managed DB later |
 | 4 | Hubs Foundation slows down | Low–Med | High | Thin changes on a subtree, MPL lets us self-maintain, Phase 5 escape hatch |
 | 5 | Student misconduct in rooms | High | Medium | Locked permissions by default, kick/ban, report button, teacher-present rule |
@@ -371,7 +379,7 @@ First, read the codebase to find the actual names of the presence, hub-channel a
 ```text
 Task: Write a Node script plus a GitHub Action using @gltf-transform/cli.
 1. Optimize every .glb in /assets with Draco geometry compression and KTX2 (UASTC for normal maps, ETC1S for others) textures.
-2. Fail CI if a scene exceeds 150k triangles, 25 MB, any texture over 2048², or more than 120 meshes after merging.
+2. Fail CI if a scene exceeds 150k triangles, 15 MB, any texture over 2048², or more than 120 meshes after merging.
 3. Print a budget report table in the job summary.
 ```
 
