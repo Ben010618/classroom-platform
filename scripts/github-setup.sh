@@ -2,7 +2,7 @@
 # One-time GitHub setup for the 3D classroom project. Safe to read top to bottom; each step is labelled.
 # Prerequisite (once, opens a browser):  gh auth refresh -h github.com -s workflow,project
 # Run from the repo root (C:\dev\classroom\classroom-platform):  bash scripts/github-setup.sh
-# Idempotent for steps 1-2; steps 3+ create issues, so run them once.
+# Safe to re-run: existing issues (matched by task number, e.g. "3.1" or "GATE 2") and the board are skipped.
 set -euo pipefail
 
 OWNER=Ben010618
@@ -27,7 +27,8 @@ lbl phase-0 "BFD4F2" "Prep"
 lbl phase-1 "C5DEF5" "Stand up & validate"
 lbl phase-2 "D4C5F9" "Scene & performance"
 lbl phase-3 "FEF2C0" "Teacher HUD & features"
-lbl phase-4 "F9D0C4" "Hardening & pilot"
+lbl phase-4 "F9D0C4" "Hardening & staff pilot"
+lbl phase-4b "FAD8C7" "Student pilot (after DPO approval)"
 lbl gate    "B60205" "Go/no-go checkpoint"
 lbl ops     "0E8A16" "Ops lead"
 lbl dev     "1D76DB" "Head programmer"
@@ -35,7 +36,12 @@ lbl privacy "5319E7" "Privacy owner / DPO"
 lbl needs-you "FBCA04" "Needs an account, purchase or signature"
 
 echo "   issues (one per roadmap task)"
-issue() { gh issue create -R "$REPO" -t "$1" -l "$2" -b "$3" >/dev/null && echo "   + $1"; }
+EXISTING=$(gh issue list -R "$REPO" --state all --limit 500 --json title --jq '.[].title')
+issue() {
+  local key; key=$(sed -E 's/^(GATE [0-9]+|[0-9]+[a-z]?\.[0-9]+)[ :].*/\1/' <<<"$1")
+  if grep -qE "^${key//./\\.}( |:)" <<<"$EXISTING"; then echo "   = $key exists"; return; fi
+  gh issue create -R "$REPO" -t "$1" -l "$2" -b "$3" >/dev/null && echo "   + $1"
+}
 issue "0.2 Send letters to SDO ICT unit and DPO"        "phase-0,privacy,needs-you" "Drafts are on the local PC (OneDrive KU/classroom-platform/docs/letters), not in git. Fill placeholders, principal notes, send."
 issue "0.5 Get reference devices (budget Android + DepEd lab laptop)" "phase-0,ops,needs-you" "Android: 3–4 GB RAM, Helio G-class, Chrome. Laptop: Celeron-class 4 GB. See BLUEPRINT §4."
 issue "0.6 Register domain"                            "phase-0,ops,needs-you" "Ask the Division about a *.edu.ph subdomain first; otherwise a project domain."
@@ -62,13 +68,22 @@ issue "4.4 Staff pilot (adults) + FrameVR head-to-head" "phase-4,dev,ops" "Fill 
 issue "4.5 Real-device capacity session (25–30 people, one room)" "phase-4,ops" "Teachers and volunteers. Record FPS on reference devices and audio dropouts."
 issue "4.6 Practice upstream subtree pull"             "phase-4,dev" "Record hours and conflicting files. Feeds Gate 4."
 issue "GATE 4: Stay on Hubs or start the custom LiveKit build" "phase-4,gate" "Criteria in BLUEPRINT §7."
-issue "4b.1 Student pilot (after DPO approval + consent)" "phase-4,privacy" "Same measurements as the staff pilot."
-issue "4b.2 Filipino locale (fil.json)"                "phase-4,dev" "No fil locale upstream. Needed for learners."
-issue "4b.3 PPT → PDF converter sidecar"               "phase-4,ops" "LibreOffice headless. Teachers upload PDFs until then."
+issue "4b.1 Student pilot (after DPO approval + consent)" "phase-4b,privacy" "Same measurements as the staff pilot."
+issue "4b.2 Filipino locale (fil.json)"                "phase-4b,dev" "No fil locale upstream. Needed for learners."
+issue "4b.3 PPT → PDF converter sidecar"               "phase-4b,ops" "LibreOffice headless. Teachers upload PDFs until then."
+issue "4b.4 3D vs 2D comparison (exit quiz, participation, data)" "phase-4b,dev" "Same teacher, same topic, matched groups. BLUEPRINT §7 Phase 4b."
+issue "3.8 Seat token reconnect + 'reconnecting' badge" "phase-3,dev" "BLUEPRINT §5.2."
+issue "3.9 Report-abuse button → teacher HUD + moderation log" "phase-3,dev,privacy" "BLUEPRINT §6."
+issue "3.10 Accessibility defaults (snap turn, vignette, tap-to-teleport, chat on)" "phase-3,dev" "BLUEPRINT §4A."
+issue "0.10 Name a person for every role in BLUEPRINT §9" "phase-0,needs-you" "A role without a name is a risk (risk 3b)."
 
 echo "== 4. Project board (needs the 'project' scope)"
-NUM=$(gh project create --owner "$OWNER" --title "3D Classroom Roadmap" --format json --jq .number)
-gh project link "$NUM" --owner "$OWNER" --repo "$REPO"
+NUM=$(gh project list --owner "$OWNER" --format json --jq '.projects[] | select(.title=="3D Classroom Roadmap") | .number' | head -1)
+if [ -z "$NUM" ]; then
+  NUM=$(gh project create --owner "$OWNER" --title "3D Classroom Roadmap" --format json --jq .number)
+  gh project link "$NUM" --owner "$OWNER" --repo "$REPO"
+fi
+# item-add is a no-op for issues already on the board
 gh issue list -R "$REPO" --limit 100 --json url --jq '.[].url' | while read -r url; do
   gh project item-add "$NUM" --owner "$OWNER" --url "$url" >/dev/null
 done
