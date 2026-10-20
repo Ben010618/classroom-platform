@@ -12,7 +12,8 @@ git -C "$ROOT" worktree add -q "$WT" origin/gh-pages -b "pages-$BUILD"
 trap 'git -C "$ROOT" worktree remove --force "$WT"; git -C "$ROOT" branch -D -q "pages-$BUILD"' EXIT
 
 rm -rf "$WT/world" && mkdir -p "$WT/world"
-cp "$ROOT"/tools/world/*.html "$ROOT"/tools/world/*.js "$WT/world/"
+# the page and its scripts only: _*.html are git-ignored dev pages
+cp "$ROOT"/tools/world/index.html "$ROOT"/tools/world/*.js "$WT/world/"
 cp -r "$ROOT/tools/world/assets" "$WT/world/"
 sed -i "s/BUILD_ID/$BUILD/g" "$WT/world/index.html"
 cp "$ROOT"/tools/smoke-test/index.html "$ROOT"/tools/smoke-test/config.js "$WT/"
