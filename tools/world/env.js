@@ -41,8 +41,10 @@ flags = flags.map(mesh => {
   const base = geo.attributes.position.array.slice();
   return { mesh, geo, base, w, dir: Math.cos(mesh.rotation.y) > 0 ? 1 : -1 };
 });
-// keep only one side (the cloth is double-sided now)
-flags.slice(1).forEach(f => { f.mesh.visible = false; });
+// the plaza flag was painted on both faces; the cloth is double-sided now, so hide the back copy.
+// Small indoor flags (the principal's office) stay still.
+flags.filter(f => Math.cos(f.mesh.rotation.y) < 0).forEach(f => { f.mesh.visible = false; });
+flags = flags.filter(f => f.mesh.visible && f.w >= 1);
 
 // ---------------------------------------------------------------- birds: a small flock circling the campus
 const birdMat = new THREE.MeshBasicMaterial({ color: 0x2a2a2a, side: THREE.DoubleSide });
@@ -164,14 +166,131 @@ function footstep(run) {
   b.connect(f).connect(g).connect(stepBus); b.start(t, Math.random() * 0.1, 0.1);
 }
 
+// ---------------------------------------------------------------- sound effects for interactions (W.sfx(name)), all synthesised
+function tone(t, f, dur, vol, type = "sine", f1 = f) {
+  const o = ac.createOscillator(); o.type = type;
+  o.frequency.setValueAtTime(f, t); if (f1 !== f) o.frequency.exponentialRampToValueAtTime(f1, t + dur);
+  const g = ac.createGain(); g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(vol, t + 0.01); g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+  o.connect(g).connect(master); o.start(t); o.stop(t + dur + 0.05);
+}
+function noise(t, dur, vol, type, freq, q = 0.8) {
+  const b = ac.createBufferSource(); b.buffer = noise.buf || (noise.buf = noiseBuffer(2));
+  const f = ac.createBiquadFilter(); f.type = type; f.frequency.value = freq; f.Q.value = q;
+  const g = ac.createGain(); g.gain.setValueAtTime(vol, t); g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+  b.connect(f).connect(g).connect(master); b.start(t, Math.random(), dur + 0.05);
+}
+const SFX = {
+  bell: t => { for (let k = 0; k < 3; k++) [1, 2.0, 2.76, 5.4, 8.9].forEach((r, i) => tone(t + k * 0.55, 880 * r, 2.4 - i * 0.35, 0.09 / (i + 1))); },
+  doorOpen: t => { tone(t, 180, 0.35, 0.03, "sawtooth", 240); noise(t, 0.12, 0.15, "lowpass", 500); },
+  doorClose: t => { noise(t, 0.18, 0.35, "lowpass", 300); tone(t, 90, 0.2, 0.08); },
+  gulp: t => { tone(t, 220, 0.09, 0.12, "sine", 140); tone(t + 0.25, 210, 0.09, 0.12, "sine", 130); },
+  splash: t => { noise(t, 0.6, 0.25, "bandpass", 1600, 0.6); noise(t + 0.1, 0.5, 0.15, "highpass", 3000); },
+  coin: t => { tone(t, 1320, 0.15, 0.08, "square"); tone(t + 0.08, 1760, 0.3, 0.08, "square"); },
+  page: t => noise(t, 0.18, 0.12, "highpass", 2500),
+  applause: t => { for (let k = 0; k < 60; k++) noise(t + Math.random() * 2.5, 0.05, 0.08 + Math.random() * 0.08, "bandpass", 1200 + Math.random() * 2000, 1.2); },
+  anthemDrum: t => { [0, 0.5, 1.0, 1.25, 1.5].forEach(d => { tone(t + d, 110, 0.3, 0.2, "sine", 60); noise(t + d, 0.15, 0.2, "lowpass", 400); }); },
+  chime: t => { [523, 659, 784, 1047].forEach((f, i) => tone(t + i * 0.09, f, 0.5, 0.07, "triangle")); },
+  thunder: t => { noise(t, 3.5, 0.6, "lowpass", 140, 0.7); noise(t + 0.2, 2.5, 0.35, "lowpass", 260, 0.5); }
+};
+W.sfx = name => {
+  if (!soundOn) return;
+  startAudio(); ac.resume();
+  if (SFX[name]) SFX[name](ac.currentTime + 0.02);
+};
+
+// ---------------------------------------------------------------- time of day + rain (Settings), remembered per device
+const sky = { bg: scene.background, fog: scene.fog.color.clone(), near: scene.fog.near, far: scene.fog.far, exposure: W.renderer.toneMappingExposure };
+const lights = {};
+scene.traverse(o => { if (o.isLight) lights[o.name] = { o, i: o.intensity, c: o.color.clone() }; });
+const lampEm = M.lamp ? M.lamp.emissiveIntensity : 1;
+const wetMats = ["concrete", "path", "grass", "grassDark", "court"].map(n => M[n]).filter(Boolean).map(m => ({ m, r: m.roughness, c: m.color.clone() }));
+function gradientTex(top, mid, bottom) {
+  const c = document.createElement("canvas"); c.width = 4; c.height = 256;
+  const g = c.getContext("2d"), gr = g.createLinearGradient(0, 0, 0, 256);
+  gr.addColorStop(0, top); gr.addColorStop(0.55, mid); gr.addColorStop(1, bottom);
+  g.fillStyle = gr; g.fillRect(0, 0, 4, 256);
+  const tex = new THREE.CanvasTexture(c); tex.encoding = THREE.sRGBEncoding;
+  return tex;
+}
+const BGS = { evening: gradientTex("#0b1630", "#3b3f6b", "#e0875a"), afternoon: null, rain: gradientTex("#5d6670", "#8a939b", "#a9b0b5") };
+const TIMES = ["day", "afternoon", "evening"];
+const prefs = { time: "day", rain: false };
+try { Object.assign(prefs, JSON.parse(localStorage.getItem("world.env") || "{}")); } catch (e) { /* ignore */ }
+function applyEnv() {
+  const ev = prefs.time === "evening", aft = prefs.time === "afternoon", wet = prefs.rain;
+  W.renderer.toneMappingExposure = sky.exposure * (ev ? 0.36 : aft ? 0.92 : 1) * (wet ? 0.78 : 1);
+  scene.background = wet ? BGS.rain : ev ? BGS.evening : sky.bg;
+  const fogC = wet ? 0x9aa3aa : ev ? 0x2a3050 : aft ? 0xe8c9a0 : null;
+  if (fogC !== null) scene.fog.color.setHex(fogC); else scene.fog.color.copy(sky.fog);
+  scene.fog.near = wet ? 25 : sky.near; scene.fog.far = wet ? 110 : ev ? sky.far * 0.8 : sky.far;
+  const sun = lights.sun, hemi = lights["sky-light"];
+  if (sun) { sun.o.intensity = sun.i * (ev ? 0.25 : wet ? 0.4 : aft ? 1.05 : 1); sun.o.color.copy(sun.c); if (aft) sun.o.color.setHex(0xffc98a); if (ev) sun.o.color.setHex(0xff9a66); }
+  if (hemi) { hemi.o.intensity = hemi.i * (ev ? 0.55 : 1); hemi.o.color.copy(hemi.c); if (ev) hemi.o.color.setHex(0x6d7ab0); }
+  if (M.lamp) M.lamp.emissiveIntensity = lampEm * (ev ? 2.6 : wet ? 1.6 : 1);
+  for (const w of wetMats) { w.m.roughness = wet ? Math.min(w.r, 0.45) : w.r; w.m.color.copy(w.c); if (wet) w.m.color.multiplyScalar(0.72); }
+  rainMesh.visible = wet;
+  timeBtn.textContent = t(`Time: ${prefs.time[0].toUpperCase() + prefs.time.slice(1)}`);
+  rainBtn.textContent = t(wet ? "Weather: Rain" : "Weather: Sunny");
+  rainBtn.setAttribute("aria-pressed", String(wet));
+  try { localStorage.setItem("world.env", JSON.stringify(prefs)); } catch (e) { /* ignore */ }
+}
+const t = s => (window.I18N ? window.I18N.t(s) : s);
+// rain: streaks around the camera (GPU-instanced, one draw call)
+const DROPS = lite ? 250 : 900;
+const rainMesh = new THREE.InstancedMesh(new THREE.BoxGeometry(0.012, 0.45, 0.012), new THREE.MeshBasicMaterial({ color: 0xbfd0e0, transparent: true, opacity: 0.55, depthWrite: false }), DROPS);
+rainMesh.frustumCulled = false; rainMesh.visible = false;
+scene.add(rainMesh);
+const rain = Array.from({ length: DROPS }, () => ({ x: (Math.random() - 0.5) * 36, y: Math.random() * 14, z: (Math.random() - 0.5) * 36, v: 11 + Math.random() * 4 }));
+const rainObj = new THREE.Object3D();
+let rainGain = null, rainFilter = null, thunderIn = 20 + Math.random() * 30;
+const timeBtn = document.createElement("button"); timeBtn.type = "button"; timeBtn.className = "toggle"; timeBtn.id = "time-btn";
+const rainBtn = document.createElement("button"); rainBtn.type = "button"; rainBtn.className = "toggle"; rainBtn.id = "rain-btn";
+timeBtn.addEventListener("click", () => { prefs.time = TIMES[(TIMES.indexOf(prefs.time) + 1) % TIMES.length]; applyEnv(); });
+rainBtn.addEventListener("click", () => { prefs.rain = !prefs.rain; applyEnv(); });
+W.hooks.push((dt, now) => {
+  if (!prefs.rain) { if (rainGain) rainGain.gain.setTargetAtTime(0, ac.currentTime, 0.4); return; }
+  const cam = W.camera.position, indoor = isIndoors();
+  rainMesh.visible = !indoor;   // the drops don't know about roofs, so hide them indoors
+  for (let i = 0; i < DROPS; i++) {
+    const d = rain[i];
+    d.y -= d.v * dt;
+    if (d.y < 0) { d.y = 12 + Math.random() * 3; d.x = (Math.random() - 0.5) * 36; d.z = (Math.random() - 0.5) * 36; }
+    rainObj.position.set(cam.x + d.x, d.y, cam.z + d.z);
+    rainObj.rotation.z = 0.08;
+    rainObj.updateMatrix();
+    rainMesh.setMatrixAt(i, rainObj.matrix);
+  }
+  rainMesh.instanceMatrix.needsUpdate = true;
+  if (ac && soundOn) {
+    if (!rainGain) {
+      const src = ac.createBufferSource(); src.buffer = noiseBuffer(3); src.loop = true;
+      rainFilter = ac.createBiquadFilter(); rainFilter.type = "bandpass"; rainFilter.Q.value = 0.4;
+      rainGain = ac.createGain(); rainGain.gain.value = 0;
+      src.connect(rainFilter).connect(rainGain).connect(master); src.start();
+    }
+    rainGain.gain.setTargetAtTime(indoor ? 0.12 : 0.22, ac.currentTime, 0.4);
+    rainFilter.frequency.setTargetAtTime(indoor ? 700 : 2400, ac.currentTime, 0.4);   // muffled on the roof indoors
+  }
+  // thunder now and then: a flash, then the rumble
+  thunderIn -= dt;
+  if (thunderIn < 0 && !indoor) {
+    thunderIn = 25 + Math.random() * 40;
+    W.renderer.toneMappingExposure = sky.exposure * 1.5;
+    setTimeout(applyEnv, 130);
+    setTimeout(() => W.sfx("thunder"), 600 + Math.random() * 1500);
+  }
+});
+
 // Sound toggle (also the first-interaction unlock that browsers require for audio)
 const btn = document.createElement("button");
 btn.type = "button"; btn.className = "toggle"; btn.id = "sound";
-const label = () => { btn.textContent = soundOn ? "Sound: on" : "Sound: off"; btn.setAttribute("aria-pressed", String(soundOn)); };
+const label = () => { btn.textContent = t(soundOn ? "Sound: on" : "Sound: off"); btn.setAttribute("aria-pressed", String(soundOn)); };
 label();
-document.querySelector(".go").appendChild(btn);
+document.getElementById("settings").append(btn, timeBtn, rainBtn);
+applyEnv();
 btn.addEventListener("click", () => {
   soundOn = !soundOn; label();
+  if (!soundOn && rainGain) rainGain.gain.value = 0;
   try { localStorage.setItem(SOUND_KEY, soundOn ? "1" : "0"); } catch (e) { /* ignore */ }
   startAudio();
   if (ac) { ac.resume(); master.gain.setTargetAtTime(soundOn ? 0.9 : 0, ac.currentTime, 0.1); }

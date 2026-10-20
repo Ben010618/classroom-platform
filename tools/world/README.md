@@ -22,13 +22,31 @@ One world definition ([`world.js`](world.js)) produces two things:
 
 | | |
 | :--- | :--- |
-| **Characters** | Quaternius **CC0** rigged mannequin with **14 animations**: idle, talk, walk, jog, sprint, jump (start, loop, land), sit (enter, idle, talk, exit), interact, dance. **Real hairstyles** and eyebrows from *Universal Base Characters* (CC0). Uniforms, skin tone and face are painted by a shader (`character.js`), so there are no extra textures. Built by `fetch-characters.mjs` (1.2 MB character, 2.3 MB with hair). |
+| **Characters** | Realistic **male and female bodies** from Quaternius *Universal Base Characters* (**CC0**) with real eyes, eyebrows and 5 hairstyles, and **16 animations** retargeted bone by bone from the *Universal Animation Library* (idle, talk, walk, jog, sprint, jump, sit, interact, pick up, dance…, with fingers). Skin tone (5) and uniforms are painted over the body texture by a shader (`character.js`); the **skirt** (skinned to the legs), **polo collar**, **school ID lanyard** and **backpack** are 3D. Faces **blink** and the mouth moves while talking. The torso is smoothed at build time so uniforms don't show the athletes' muscles, and the male face is cleaned of stubble. Built by `node fetch-characters.mjs --ubc "<Universal Base Characters[Standard].zip>"` (about 630 KB per body, 2.1 MB with hair). |
+| **Emotes** | **1–5** or the ☺ button: wave, clap, cheer, nod, dance. Synced in multiplayer. |
 | **Physics** | **[Rapier](https://rapier.rs) 0.19.3** (Apache-2.0) kinematic character controller: gravity, jumping, sliding along walls, solid desks, trees and fences, and **climbing the stage stairs** (a hidden ramp collider). Falls back to simple collision if it can't load. |
 | **Camera** | Third-person orbit (drag to look) that pulls in and never crosses walls, windows or doors. **V** switches to first person. |
 | **Controls** | Computer: **WASD** move · **Shift/R** run · **Space** jump · **C** sit at the nearest chair or stand · **H** raise hand · **V** camera. Phone: thumbstick ring and round **Jump / Run / Hand / Sit / View** buttons. |
 | **Device detection** | Type, OS, GPU, memory and cores pick **Low / Medium / High**. Low keeps the light first-person mode. The badge bottom-right shows what was detected. |
 
+## Things to do
+
+| Module | What |
+| :--- | :--- |
+| `interact.js` | Walk up and press **E** (or tap the prompt): **doors** that open and close (closed doors are solid), **write on the chalkboard**, **show PDF slides** on the classroom screen (pdf.js, loaded on demand), **read books** in the library, **buy snacks** at the canteen (₱50 allowance a day), ring the **school bell**, **raise the flag**, **water the garden**, drink water, wash hands, grab a basketball, perform on stage. Doors, board, slides, flag and bell are **synced in multiplayer** (slides only from the teacher), and people who join later are caught up. |
+| `npc.js` | People in the school who talk to you (English or Filipino): Mang Ben the guard, Aling Nena at the canteen, Ms. Reyes the librarian, Dr. Cruz the principal, Mang Tonyo in the garden, Mr. Santos in the Science Lab, and three students walking around who wave as you pass. Hidden and paused when far away. |
+| `quests.js` | **First-day tasks** (J or 📋): 10 orientation tasks with a chime, a counter and confetti at the end; saved on the device. |
+| `minimap.js` | **Mini-map** (top right) with you, classmates, staff and a pin on your next task; tap it for the whole campus and tap a place to go there. |
+| `i18n.js` | **English / Filipino** for the menus, prompts, places, tasks and dialogue (Menu → Settings). |
+
+New places: **Grade 8 room**, **Science Laboratory**, **ICT Room** (rooms 2–4 now open, box furniture so they stay cheap), and an **Administration** building behind the school with the **Principal's office** and **comfort rooms**. Also water dispensers, a school bell, sports equipment on the court, and garden beds at three growth stages with tomatoes and eggplants.
+
+The loading screen shows a progress bar and tips, and a **controls guide** appears on the first visit (again from Menu → Settings).
+
 ## Environment (`env.js`)
+
+- **Time of day:** Day, Afternoon or Evening (classroom lights glow at night). **Weather:** rain with streaks, rain sound (muffled indoors), wet ground and the odd thunderclap. Both in Menu → Settings, remembered per device.
+- **Sound effects** for the interactions (bell, doors, water, coins, pages, applause…), synthesised like the rest of the soundscape.
 
 - **Wind:** tree canopies and potted plants sway in gusts (GPU vertex animation), and the **Philippine flag waves** as cloth.
 - **Life:** a flock of birds circling with flapping wings (GPU-instanced, 3 draw calls), falling leaves near you, and butterflies in the vegetable garden.
@@ -49,7 +67,7 @@ Press **Join class (multiplayer)**. Everyone who enters the **same class code** 
 - **Voice:** spatial, so people get louder as you walk closer. Pods are cut off from each other, and a teacher standing on the podium is heard everywhere.
 - **Teacher** (tick "I'm the teacher"): Mute everyone, Gather to seats (optionally locked), Call to the front, Unlock seats, and the raised-hands list.
 
-How it works: [`multiplayer.js`](multiplayer.js) uses **[Trystero](https://github.com/dmotz/trystero) 0.25.4**. Browsers connect **directly to each other** (WebRTC), and public Nostr relays are used only to find each other. There is no server of ours.
+How it works: [`multiplayer.js`](multiplayer.js) uses **[Trystero](https://github.com/dmotz/trystero) 0.25.4**. Browsers connect **directly to each other** (WebRTC), and public Nostr relays are used only to find each other. There is no server of ours. The relay list is set explicitly in `multiplayer.js` (two of Trystero's defaults went offline); if joining stops working, check those relays first.
 
 **Limits — this is a demo, not the classroom platform:**
 - About **8 people** at most. Every browser sends its voice to every other browser.

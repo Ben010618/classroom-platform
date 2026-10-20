@@ -7,6 +7,10 @@
 import { joinRoom, selfId } from "https://cdn.jsdelivr.net/npm/trystero@0.25.4/nostr/+esm";
 
 const APP_ID = "katuro-university-v1";
+// Public Nostr relays used only to find each other: the ones Trystero picks for this app id, minus two that
+// went offline (koru.bitcointxoko.org, relay.mostr.pub: a console error on every join), plus nos.lol as a spare.
+// Everyone in a class must use the same list. Checked October 2026; relays come and go.
+const RELAYS = ["wss://relay-rpi.edufeed.org", "wss://nostr-relay.corb.net", "wss://relay02.lnfi.network", "wss://nos.lol"];
 const SEND_HZ = 10;
 const W = await waitForWorld();
 const { THREE, scene, camera, me } = W;
@@ -20,6 +24,8 @@ const store = {
 
 // ---------------------------------------------------------------- join panel + appearance editor
 const look = { ...A.DEFAULT_LOOK, ...store.get("world.look", {}) };
+if (!look.body && window.Characters) look.body = window.Characters.bodyKind(look);
+if (!look.body) look.body = look.outfit === "blouse" ? "female" : "male";
 const panel = $("mp-panel");
 const fill = (sel, entries, value) => {
   sel.innerHTML = "";
@@ -51,8 +57,15 @@ const swatches = (el, palette, key) => {
 };
 swatches($("mp-skin"), A.SKIN, "skin");
 swatches($("mp-haircolor"), A.HAIR_COLOR, "hairColor");
+// backpack colours are stored as hex, so the swatch keys map to their own colour
+swatches($("mp-bagcolor"), Object.fromEntries(Object.values(A.BAG_COLORS).map(h => [h, h])), "bagColor");
+fill($("mp-body"), Object.entries(A.BODIES), look.body);
+$("mp-bag").checked = look.bag !== false;
+$("mp-bagcolor-row").hidden = !$("mp-bag").checked;
 $("mp-outfit").addEventListener("change", e => { look.outfit = e.target.value; refreshPreview(); });
 $("mp-hair").addEventListener("change", e => { look.hair = e.target.value; refreshPreview(); });
+$("mp-body").addEventListener("change", e => { look.body = e.target.value; refreshPreview(); });
+$("mp-bag").addEventListener("change", e => { look.bag = e.target.checked; $("mp-bagcolor-row").hidden = !look.bag; refreshPreview(); });
 
 // small live preview of your own avatar
 const pv = $("mp-preview");
@@ -65,33 +78,60 @@ const pvSun = new THREE.DirectionalLight(0xffffff, 0.8); pvSun.position.set(1, 2
 const pvCam = new THREE.PerspectiveCamera(30, 1, 0.1, 10);
 pvCam.position.set(0, 1.25, -3.6); pvCam.lookAt(0, 1.0, 0);
 let pvAvatar = null;
+// HD character when RPG mode has loaded them, otherwise the light avatar
+const hd = () => window.Characters && window.Characters.ready() && !W.simple;
 function refreshPreview() {
   if (pvAvatar) pvScene.remove(pvAvatar);
-  pvAvatar = A.buildAvatar(THREE, look, { noTag: true });
+  pvAvatar = hd() ? window.Characters.create(THREE, look, { noTag: true }) : A.buildAvatar(THREE, look, { noTag: true });
   pvScene.add(pvAvatar);
 }
 refreshPreview();
-let pvSpin = 0;
-function drawPreview() {
+window.addEventListener("characters-ready", refreshPreview);
+let pvSpin = 0, pvLast = performance.now();
+function drawPreview(now) {
   if (!panel.hidden) {
+    const dt = Math.min(0.05, ((now || pvLast) - pvLast) / 1000);
     const r = pv.getBoundingClientRect();
     pvRenderer.setSize(r.width, r.height, false);
     pvCam.aspect = r.width / r.height; pvCam.updateProjectionMatrix();
-    pvSpin += 0.01; pvAvatar.rotation.y = Math.PI + Math.sin(pvSpin) * 0.6;
+    pvSpin += 0.01; pvAvatar.rotation.y = Math.sin(pvSpin) * 0.6;   // avatars face −Z, toward the camera
+    pvAvatar.userData.tick(dt);
     pvRenderer.render(pvScene, pvCam);
   }
+  pvLast = now || pvLast;
   requestAnimationFrame(drawPreview);
 }
 drawPreview();
 
-$("mp-open").addEventListener("click", () => { panel.hidden = false; });
+// The same panel joins a class, or just changes your character ("Save look")
+const openPanel = joining => {
+  if (W.closePops) W.closePops();
+  panel.hidden = false;
+  $("mp-title").textContent = joining ? "Join the class" : "Your character";
+  $("mp-join-fields").hidden = !joining;
+  $("mp-join").hidden = !joining;
+  $("mp-save").hidden = joining;
+  $("mp-room").closest("label").hidden = !joining;
+  $("mp-name").closest("label").hidden = !joining;
+  $("mp-title").nextElementSibling.hidden = !joining;
+};
+$("mp-open").addEventListener("click", () => openPanel(true));
+$("look-open").addEventListener("click", () => openPanel(false));
 $("mp-close").addEventListener("click", () => { panel.hidden = true; });
+$("mp-save").addEventListener("click", () => {
+  store.set("world.look", look);
+  if (W.player && W.player.setLook) W.player.setLook(look);
+  if (room && W.sendHello) W.sendHello({ look, role });
+  panel.hidden = true;
+  toast("Character saved");
+});
 
 // ---------------------------------------------------------------- session state
 let room = null, role = "learner", micStream = null, muted = false, handUp = false, audioCtx = null;
 const peers = new Map(); // peerId → { avatar, look, role, pose, target, hand, panner, gain, analyser, audioEl }
 const handQueue = [];    // teacher view: [{ id, name, since }]
 W.peers = peers;       // for debugging and tests
+W.mp = { get inRoom() { return !!room; }, get role() { return role; } };
 
 const status = text => { $("mp-status").textContent = text; };
 const toast = text => {
@@ -135,10 +175,14 @@ async function join() {
   }
   setMuted(!micStream);
 
-  room = joinRoom({ appId: APP_ID }, code);
+  room = joinRoom({ appId: APP_ID, relayConfig: { urls: RELAYS } }, code);
   const [sendHello, onHello] = act("hello");
   const [sendPoseRaw, onPose] = act("pose");
   const [sendCmd, onCmd] = act("cmd");
+  const [sendEvt, onEvt] = act("evt");
+  // shared world events (doors, chalkboard, slides, bell, flag): handlers registered in W.mpHandlers by type
+  W.mpSend = (type, data, target) => sendEvt({ type, data }, target);
+  onEvt((m, id) => (W.mpHandlers[m.type] || []).forEach(fn => fn(m.data, id, peers.get(id))));
   W.sendCmd = sendCmd;
   W.sendPoseRaw = sendPoseRaw;
   W.sendHello = sendHello;
@@ -146,6 +190,7 @@ async function join() {
   room.onPeerJoin = id => {
     sendHello({ look, role }, id);
     if (micStream) room.addStream(micStream, { target: id });
+    (W.peerJoinHooks || []).forEach(f => f(id));   // e.g. interact.js sends the current doors, flag and slides
     updateCount();
   };
   room.onPeerLeave = id => {
@@ -181,6 +226,11 @@ async function join() {
     }
     peer.muted = p.muted;
     peer.avatar.userData.setSitting(!!p.sit);
+    if (peer.em === undefined) peer.em = p.em || "";   // don't replay an emote from before we met
+    else if (p.em && p.em !== peer.em) {
+      peer.em = p.em;
+      if (peer.avatar.userData.emote) peer.avatar.userData.emote(p.em.split(":")[0]);
+    }
   });
   onCmd((c, id) => {
     const sender = peers.get(id);
@@ -213,6 +263,7 @@ function act(name) {
 function leave() {
   if (room) room.leave();
   room = null;
+  W.mpSend = null;
   for (const p of peers.values()) { scene.remove(p.avatar); if (p.audioEl) p.audioEl.srcObject = null; }
   peers.clear();
   handQueue.length = 0; renderHands();
@@ -268,7 +319,8 @@ let lastSent = "";
 function sendPose(force) {
   if (!W.sendPoseRaw) return;
   const p = { x: +me.x.toFixed(2), z: +me.z.toFixed(2), y: +(me.y || 0).toFixed(2), yaw: +((me.face ?? me.yaw)).toFixed(2),
-    spd: +(me.speed || 0).toFixed(1), air: !!me.air, hand: handUp, muted, sit: !!(me.sitting || me.locked) };
+    spd: +(me.speed || 0).toFixed(1), air: !!me.air, hand: handUp, muted, sit: !!(me.sitting || me.locked),
+    em: W.localEmote ? W.localEmote.name + ":" + W.localEmote.n : "" };
   const key = JSON.stringify(p);
   if (force || key !== lastSent) { W.sendPoseRaw(p); lastSent = key; }
 }
