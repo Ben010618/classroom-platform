@@ -3,6 +3,7 @@ import protooClient from "protoo-client";
 import { debug as newDebug } from "debug";
 import EventEmitter from "eventemitter3";
 import { MediaDevices } from "./utils/media-devices-utils";
+import { buildIceServers, classroomNetworkConfig } from "./classroom/ice-servers"; // classroom: UPSTREAM_PATCHES #5
 
 // Used for VP9 webcam video.
 //const VIDEO_KSVC_ENCODINGS = [{ scalabilityMode: "S3T3_KEY" }];
@@ -72,33 +73,10 @@ export class DialogAdapter extends EventEmitter {
   }
 
   getIceServers(host, port, turn) {
-    const iceServers = [];
-
     this._serverUrl = `wss://${host}:${port}`;
 
-    if (turn && turn.enabled) {
-      turn.transports.forEach(ts => {
-        // Try both TURN DTLS and TCP/TLS
-        if (!this._forceTcp) {
-          iceServers.push({
-            urls: `turns:${host}:${ts.port}`,
-            username: turn.username,
-            credential: turn.credential
-          });
-        }
-
-        iceServers.push({
-          urls: `turns:${host}:${ts.port}?transport=tcp`,
-          username: turn.username,
-          credential: turn.credential
-        });
-      });
-      iceServers.push({ urls: "stun:stun1.l.google.com:19302" });
-    } else {
-      iceServers.push({ urls: "stun:stun1.l.google.com:19302" }, { urls: "stun:stun2.l.google.com:19302" });
-    }
-
-    return iceServers;
+    // classroom: UPSTREAM_PATCHES #5 — no Google STUN; optional TURN on 443.
+    return buildIceServers(host, turn, { forceTcp: this._forceTcp, ...classroomNetworkConfig() });
   }
 
   /**

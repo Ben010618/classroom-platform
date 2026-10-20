@@ -6,4 +6,4 @@ Every file from `Hubs-Foundation/hubs` that we modify. These files stay under MP
 
 | # | Upstream file | Why we touched it | Hook added | Date | Rebase notes |
 | :- | :--- | :--- | :--- | :--- | :--- |
-| — | *(none yet)* | | | | |
+| 5 | `hubs/src/naf-dialog-adapter.js` | Stop sending learner IPs to Google STUN (#34); optional coturn on 443 via a second host (#33) | 1 import; `getIceServers` body replaced by a call to `buildIceServers` in `classroom/ice-servers.js` (keeps `this._serverUrl`) | 2026-10-20 | 2 marked spots. If upstream changes `getIceServers`, port any new TURN logic into `buildIceServers`. Numbers 1–4 are in the open feature PRs. |
